@@ -4,16 +4,19 @@ import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities'
 import type { Part } from '../../main/core/types'
 import { UnlockPanel } from './UnlockDialog'
+import { EventPicker } from './EventPicker'
 
-function Row({ part, i, total, onChange, onMove, onRemove }: {
+function Row({ part, i, total, onChange, onGroup, onMove, onRemove }: {
   part: Part; i: number; total: number
-  onChange: (name: string) => void; onMove: (d: number) => void; onRemove: () => void
+  onChange: (name: string) => void; onGroup: (group: string) => void; onMove: (d: number) => void; onRemove: () => void
 }) {
   const s = useSortable({ id: part.id })
   return (
     <div ref={s.setNodeRef} className="list-row" style={{ transform: CSS.Transform.toString(s.transform), transition: s.transition }}>
       <span className="grip" {...s.listeners} {...s.attributes} aria-label={`Drag ${part.name}`}>⋮⋮</span>
       <input type="text" aria-label={`Part ${i + 1} name`} value={part.name} onChange={(e) => onChange(e.target.value)} />
+      <input type="text" className="group-input" aria-label={`Folder for ${part.name || `part ${i + 1}`}`} placeholder="Folder (optional)"
+        value={part.group ?? ''} onChange={(e) => onGroup(e.target.value)} />
       <button className="ghost" aria-label={`Move ${part.name} up`} disabled={i === 0} onClick={() => onMove(-1)}>↑</button>
       <button className="ghost" aria-label={`Move ${part.name} down`} disabled={i === total - 1} onClick={() => onMove(1)}>↓</button>
       <button className="ghost" aria-label={`Remove ${part.name}`} onClick={onRemove}>✕</button>
@@ -28,10 +31,16 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const [unlocking, setUnlocking] = useState(false)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
 
+  const loadParts = () => void window.api.getParts().then(setParts)
   useEffect(() => {
-    void window.api.getParts().then(setParts)
+    loadParts()
     void window.api.licence().then(setLicence)
   }, [])
+
+  async function reset() {
+    await window.api.setParts([])
+    loadParts()
+  }
 
   const update = (i: number, patch: Partial<Part>) => setParts(parts.map((p, k) => (k === i ? { ...p, ...patch } : p)))
   const move = (i: number, d: number) => setParts(arrayMove(parts, i, i + d))
@@ -41,7 +50,10 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   }
 
   async function save() {
-    const cleaned = parts.map((p) => ({ ...p, name: p.name.trim() || 'Untitled' }))
+    const cleaned = parts.map((p) => {
+      const group = p.group?.trim()
+      return { ...p, name: p.name.trim() || 'Untitled', group: group || undefined }
+    })
     await window.api.setParts(cleaned)
     onClose()
   }
@@ -63,22 +75,27 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           }}
         />
       ) : (
-      <div className="dialog" style={{ width: 'min(560px, 92vw)' }}>
+      <div className="dialog" style={{ width: 'min(700px, 94vw)' }}>
         <h2>Settings</h2>
-        <p>Parts of the day, in order. Drag to reorder. Changes apply the next time you sort a folder.</p>
+        <EventPicker onChanged={loadParts} />
+        <p>Parts of the day, in order. Drag to reorder. Give parts the same folder to save them as sub-folders inside it. Changes apply the next time you sort a folder.</p>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={parts.map((p) => p.id)} strategy={verticalListSortingStrategy}>
             <div className="list">
               {parts.map((p, i) => (
                 <Row key={p.id} part={p} i={i} total={parts.length}
                   onChange={(name) => update(i, { name })}
+                  onGroup={(group) => update(i, { group })}
                   onMove={(d) => move(i, d)}
                   onRemove={() => setParts(parts.filter((_, k) => k !== i))} />
               ))}
             </div>
           </SortableContext>
         </DndContext>
-        <button onClick={() => setParts([...parts, { id: `custom-${Date.now().toString(36)}`, name: '', prompts: [] }])}>Add a part</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => setParts([...parts, { id: `custom-${Date.now().toString(36)}`, name: '', prompts: [] }])}>Add a part</button>
+          <button className="ghost" onClick={() => void reset()}>Reset to defaults</button>
+        </div>
         <div style={{ borderTop: '1px solid var(--line)', paddingTop: 12 }}>
           {licence?.licensed ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

@@ -105,3 +105,10 @@ input[type='text'] {
 .enso-dot { opacity: 0.22; transition: opacity 600ms ease, transform 600ms cubic-bezier(0.3, 1.6, 0.5, 1); transform-box: fill-box; transform-origin: center; }
 .enso-dot.lit { opacity: 1; transform: scale(1.12); }
 @media (prefers-reduced-motion: reduce) { .enso-wave { animation: none; } .enso-level, .enso-dot { transition: none; } }
+
+.event-picker { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
+.event-picker select {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
+  padding: 6px 10px; font: inherit; font-size: 14px;
+}
+.list-row .group-input { width: 170px; flex: none; color: var(--muted); }

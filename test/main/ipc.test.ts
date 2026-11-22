@@ -65,6 +65,42 @@ describe('ipc handlers', () => {
     expect(await h.getParts()).toHaveLength(3)
   })
 
+  test('event types: switching changes the parts, and each keeps its own edits', async () => {
+    const { h } = await setup(1)
+    const ev = await h.getEvents()
+    expect(ev.current).toBe('wedding')
+    expect(ev.events.map((e) => e.id)).toContain('corporate')
+    await h.setParts(DEFAULT_PARTS.slice(0, 2))
+    await h.setEvent('corporate')
+    expect((await h.getEvents()).current).toBe('corporate')
+    expect((await h.getParts())[0].name).toBe('Arrival and registration')
+    await h.setEvent('wedding')
+    expect(await h.getParts()).toHaveLength(2)
+    await h.setParts([])
+    expect(await h.getParts()).toHaveLength(DEFAULT_PARTS.length)
+  })
+
+  test('an unknown event type is ignored', async () => {
+    const { h } = await setup(1)
+    await h.setEvent('nonsense')
+    expect((await h.getEvents()).current).toBe('wedding')
+  })
+
+  test('wedding parts saved by an older version are kept', async () => {
+    const { h, userData } = await setup(1)
+    const { writeFile } = await import('node:fs/promises')
+    await writeFile(join(userData, 'parts.json'), JSON.stringify(DEFAULT_PARTS.slice(0, 4)))
+    expect(await h.getParts()).toHaveLength(4)
+  })
+
+  test('sorting uses the chosen event and gives added parts prompts from their names', async () => {
+    const { h, dir } = await setup(2)
+    await h.setEvent('party')
+    await h.setParts([{ id: 'x', name: 'Fireworks', prompts: [] }, { id: 'y', name: 'Cake', prompts: ['a cake'] }])
+    const r = await h.sort(dir)
+    expect(r.parts.map((p) => p.prompts[0])).toEqual(['a photo of fireworks', 'a cake'])
+  })
+
   test('only paths from the last sort are allowed for thumbnails', async () => {
     const { h, dir } = await setup(1)
     expect(h.isAllowedPath(join(dir, 'IMG0001.jpg'))).toBe(false)

@@ -15,6 +15,15 @@ test('the start screen shows the Zen Sync logo', () => {
   expect(screen.getByRole('img', { name: 'Zen Sync' })).toBeTruthy()
 })
 
+test('the start screen asks what kind of event it is and remembers the choice', async () => {
+  const { api } = mockApi()
+  render(<App />)
+  const select = (await screen.findByRole('combobox', { name: 'Type of event' })) as HTMLSelectElement
+  await waitFor(() => expect(select.value).toBe('wedding'))
+  fireEvent.change(select, { target: { value: 'corporate' } })
+  await waitFor(() => expect(api.setEvent).toHaveBeenCalledWith('corporate'))
+})
+
 test('the liquid ensō fills with the analysing progress and lights the dot when done', async () => {
   let finish!: (v: ReturnType<typeof sampleResult>) => void
   const { listeners } = mockApi({ sort: () => new Promise((r) => (finish = r)) })

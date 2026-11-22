@@ -2,7 +2,7 @@ import { join, resolve } from 'node:path'
 import { addCorrection, type CorrectionSet } from './core/corrections'
 import type { Embedder } from './core/embed'
 import { activate, canSave, claimPurchase, deactivate, isLicensed, type LicenceState } from './core/licence'
-import { DEFAULT_PARTS, loadParts, saveParts } from './core/parts'
+import { DEFAULT_EVENT, EVENT_TYPES, eventById, partsForSort } from './core/events'
 import { applyClockFix, runSort, type SortSession } from './core/pipeline'
 import { OUTPUT_FOLDER, planOutput, writeCopies } from './core/save'
 import { createStore } from './core/store'
@@ -27,7 +27,16 @@ export interface HandlerDeps {
 }
 
 export function createHandlers(deps: HandlerDeps) {
-  const partsStore = createStore<Part[] | null>(join(deps.userData, 'parts.json'), null)
+  const eventStore = createStore<string>(join(deps.userData, 'event.json'), DEFAULT_EVENT)
+  const currentEvent = () => eventById(eventStore.get())
+  // Wedding parts keep the original parts.json, so edits from older versions carry over.
+  const partsStore = (id: string) =>
+    createStore<Part[] | null>(join(deps.userData, id === 'wedding' ? 'parts.json' : `parts-${id}.json`), null)
+  const loadParts = (): Part[] => {
+    const ev = currentEvent()
+    const saved = partsStore(ev.id).get()
+    return Array.isArray(saved) && saved.length ? saved : ev.parts
+  }
   const licenceStore = createStore<LicenceState | null>(join(deps.userData, 'licence.json'), null)
   const correctionsStore = createStore<CorrectionSet>(join(deps.userData, 'corrections.json'), [])
   let embedder: Promise<Embedder> | undefined
@@ -55,7 +64,7 @@ export function createHandlers(deps: HandlerDeps) {
       }
       session = await runSort(dir, {
         embedder: model,
-        parts: loadParts(partsStore),
+        parts: partsForSort(loadParts()),
         corrections: correctionsStore.get(),
         onProgress: (stage, done, total) => deps.emit(EVENTS.progress, { stage, done, total })
       })
@@ -92,11 +101,20 @@ export function createHandlers(deps: HandlerDeps) {
     },
 
     async getParts(): Promise<Part[]> {
-      return loadParts(partsStore)
+      return loadParts()
     },
 
+    /** Saves the current event's parts; an empty list resets them to the event's defaults. */
     async setParts(parts: Part[]): Promise<void> {
-      saveParts(partsStore, parts.length ? parts : DEFAULT_PARTS)
+      partsStore(currentEvent().id).set(parts.length ? parts : null)
+    },
+
+    async getEvents(): Promise<{ current: string; events: { id: string; name: string }[] }> {
+      return { current: currentEvent().id, events: EVENT_TYPES.map(({ id, name }) => ({ id, name })) }
+    },
+
+    async setEvent(id: string): Promise<void> {
+      if (EVENT_TYPES.some((e) => e.id === id)) eventStore.set(id)
     },
 
     async licence(): Promise<{ licensed: boolean; customerName?: string; key?: string }> {

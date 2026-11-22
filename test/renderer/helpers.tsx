@@ -36,6 +36,11 @@ export function mockApi(overrides: Partial<Api> = {}) {
     save: vi.fn(async () => ({ written: 124, outDir: '/w/bakewell wedding/numbered' })),
     getParts: vi.fn(async () => sampleResult().parts),
     setParts: vi.fn(async () => {}),
+    getEvents: vi.fn(async () => ({
+      current: 'wedding',
+      events: [{ id: 'wedding', name: 'Wedding' }, { id: 'corporate', name: 'Corporate event' }]
+    })),
+    setEvent: vi.fn(async () => {}),
     licence: vi.fn(async () => ({ licensed: false })),
     activate: vi.fn(async () => ({ ok: true as const, customerName: 'Jane Smith' })),
     deactivate: vi.fn(async () => ({ ok: true })),

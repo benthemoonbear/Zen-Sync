@@ -2,6 +2,7 @@ import { useEffect, useState, type DragEvent } from 'react'
 import type { Progress } from '../../shared/api'
 import { appStore } from '../state/store'
 import { EnsoLoader, EnsoLogo } from '../components/Enso'
+import { EventPicker } from '../components/EventPicker'
 
 function progressText(p: Progress | null): string {
   if (!p) return 'Getting ready…'
@@ -92,6 +93,7 @@ export function DropScreen() {
         ) : (
           <>
             <EnsoLogo />
+            <EventPicker />
             <h1>Drag a folder of finished JPEGs here</h1>
             <p>or</p>
             <button className="primary" onClick={choose}>

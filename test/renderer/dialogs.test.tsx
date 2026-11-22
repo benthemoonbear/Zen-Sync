@@ -138,6 +138,34 @@ describe('SettingsDialog', () => {
     await waitFor(() => expect(api.deactivate).toHaveBeenCalled())
   })
 
+  test('parts can be put inside a folder (group)', async () => {
+    const { api } = await openSettings()
+    const folder = (await screen.findByLabelText('Folder for Details')) as HTMLInputElement
+    fireEvent.change(folder, { target: { value: 'Morning' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
+    await waitFor(() => expect(api.setParts).toHaveBeenCalled())
+    const saved = (api.setParts as ReturnType<typeof vi.fn>).mock.calls[0][0] as { name: string; group?: string }[]
+    expect(saved.find((p) => p.name === 'Details')!.group).toBe('Morning')
+  })
+
+  test('switching the event type in Settings loads that event\'s parts', async () => {
+    const { api } = await openSettings({
+      getParts: vi.fn()
+        .mockResolvedValueOnce([{ id: 'a', name: 'Getting ready', prompts: ['x'] }])
+        .mockResolvedValue([{ id: 'talks', name: 'Talks and presentations', prompts: ['y'] }])
+    })
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Type of event' }), { target: { value: 'corporate' } })
+    await waitFor(() => expect(api.setEvent).toHaveBeenCalledWith('corporate'))
+    expect(await screen.findByDisplayValue('Talks and presentations')).toBeTruthy()
+  })
+
+  test('reset puts back the default parts for the event', async () => {
+    const { api } = await openSettings()
+    fireEvent.click(await screen.findByRole('button', { name: 'Reset to defaults' }))
+    await waitFor(() => expect(api.setParts).toHaveBeenCalledWith([]))
+    expect(api.getParts).toHaveBeenCalledTimes(2)
+  })
+
   test('an unlicensed user can enter a key they bought from Settings', async () => {
     const { api } = await openSettings()
     fireEvent.click(await screen.findByRole('button', { name: 'Unlock' }))

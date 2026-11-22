@@ -20,6 +20,8 @@ export interface Part {
   name: string
   prompts: string[]
   floating?: boolean
+  /** Optional bigger folder this part is saved inside, e.g. "Reception" */
+  group?: string
 }
 
 export interface ClockSuggestion {

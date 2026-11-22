@@ -1,12 +1,14 @@
 import { createRoot } from 'react-dom/client'
 import { App } from '../../src/renderer/App'
 import { DEFAULT_PARTS } from '../../src/main/core/parts'
+import { EVENT_TYPES } from '../../src/main/core/events'
 import bakewell from './public/data.json'
 import robyn from './public/data-robyn.json'
 const data: any = location.search.includes('robyn') ? robyn : bakewell
 
 const result = { ...data, parts: DEFAULT_PARTS }
 let progressCb: any
+let currentEvent = 'wedding'
 ;(window as any).api = {
   chooseFolder: async () => (location.search.includes('robyn') ? '/home/you/Pictures/Robyn & Gabriel' : location.search.includes('demo') ? '/home/you/Pictures/Smith wedding' : '/home/ben/Pictures/bakewell wedding'),
   sort: () =>
@@ -24,7 +26,9 @@ let progressCb: any
   applyClockFix: async () => ({ ...result, clock: [] }),
   recordCorrection: async () => {},
   save: async () => ({ written: data.photos.length, outDir: '/x/numbered' }),
-  getParts: async () => DEFAULT_PARTS,
+  getParts: async () => EVENT_TYPES.find((e) => e.id === currentEvent)!.parts,
+  getEvents: async () => ({ current: currentEvent, events: EVENT_TYPES.map(({ id, name }) => ({ id, name })) }),
+  setEvent: async (id: string) => { currentEvent = id },
   setParts: async () => {},
   licence: async () => ({ licensed: false }),
   activate: async () => ({ ok: true, customerName: 'Jane Smith' }),

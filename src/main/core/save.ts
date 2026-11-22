@@ -36,15 +36,34 @@ function folderName(name: string): string {
   return name.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim() || 'Untitled'
 }
 
-/** Numbered names: 1.jpg… through the day; per-part folders "01 Name" for non-empty parts only. */
+const num = (n: number) => String(n).padStart(2, '0')
+
+/**
+ * Numbered names: 1.jpg… through the day. Per-part mode makes "01 Name" folders for non-empty parts;
+ * a part with a group goes inside "NN Group/MM Name", numbered within its group. Folders are numbered
+ * in the order they first appear.
+ */
 export function planOutput(photos: SortedPhoto[], parts: Part[], mode: SaveMode): PlannedCopy[] {
   if (mode === 'single') return photos.map((p, i) => ({ src: p.path, rel: `${i + 1}.jpg` }))
+  const top = new Map<string, { folder: string; children: number }>()
   const folders = new Map<string, string>()
   return photos.map((p, i) => {
     let folder = folders.get(p.partId)
     if (!folder) {
-      const name = parts.find((x) => x.id === p.partId)?.name ?? p.partId
-      folder = `${String(folders.size + 1).padStart(2, '0')} ${folderName(name)}`
+      const part = parts.find((x) => x.id === p.partId)
+      const name = folderName(part?.name ?? p.partId)
+      const group = part?.group ? folderName(part.group) : ''
+      if (group && group !== 'Untitled') {
+        let g = top.get(`g:${group}`)
+        if (!g) {
+          g = { folder: `${num(top.size + 1)} ${group}`, children: 0 }
+          top.set(`g:${group}`, g)
+        }
+        folder = `${g.folder}/${num(++g.children)} ${name}`
+      } else {
+        folder = `${num(top.size + 1)} ${name}`
+        top.set(`p:${p.partId}`, { folder, children: 0 })
+      }
       folders.set(p.partId, folder)
     }
     return { src: p.path, rel: `${folder}/${i + 1}.jpg` }

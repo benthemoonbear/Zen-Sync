@@ -31,6 +31,33 @@ describe('planOutput', () => {
       '02 Cake cutting/4.jpg', '02 Cake cutting/5.jpg'
     ])
   })
+
+  test('grouped parts go into sub-folders inside their group, numbered within it', () => {
+    const grouped: Part[] = [
+      { id: 'prep', name: 'Getting ready', group: 'Morning', prompts: [] },
+      { id: 'ceremony', name: 'Ceremony', group: 'Ceremony', prompts: [] },
+      { id: 'signing', name: 'Signing', group: 'Ceremony', prompts: [] },
+      { id: 'cake', name: 'Cake', prompts: [] }
+    ]
+    const photos = [
+      sp('/in', 'a.jpg', 'prep'), sp('/in', 'b.jpg', 'ceremony'), sp('/in', 'c.jpg', 'signing'),
+      sp('/in', 'd.jpg', 'cake'), sp('/in', 'e.jpg', 'prep')
+    ]
+    expect(planOutput(photos, grouped, 'perPart').map((p) => p.rel)).toEqual([
+      '01 Morning/01 Getting ready/1.jpg',
+      '02 Ceremony/01 Ceremony/2.jpg',
+      '02 Ceremony/02 Signing/3.jpg',
+      '03 Cake/4.jpg',
+      '01 Morning/01 Getting ready/5.jpg'
+    ])
+  })
+
+  test('a blank or unsafe group name counts as no group', () => {
+    const odd: Part[] = [{ id: 'x', name: 'X', group: '  ', prompts: [] }, { id: 'y', name: 'Y', group: 'A/B:', prompts: [] }]
+    expect(planOutput([sp('/in', 'a.jpg', 'x'), sp('/in', 'b.jpg', 'y')], odd, 'perPart').map((p) => p.rel)).toEqual([
+      '01 X/1.jpg', '02 AB/01 Y/2.jpg'
+    ])
+  })
 })
 
 describe('writeCopies', () => {
