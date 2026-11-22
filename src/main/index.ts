@@ -20,7 +20,7 @@ function createWindow(): void {
     minWidth: 1000,
     minHeight: 680,
     backgroundColor: '#1c1c1e',
-    title: 'Wedding Photo Sorter',
+    title: 'Zen Sync',
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

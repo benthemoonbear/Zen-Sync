@@ -1,4 +1,4 @@
-# Wedding Photo Sorter
+# Zen Sync — wedding photo sorter
 
 Sorts a folder of finished wedding JPEGs into wedding-day order by looking at the pictures,
 lets you fix the order on a timeline, and saves numbered copies (`1.jpg`, `2.jpg`, …) into a

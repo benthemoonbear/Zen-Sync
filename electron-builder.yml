@@ -1,7 +1,7 @@
 publish: null
 npmRebuild: false
-appId: uk.co.zenvisuals.weddingsorter
-productName: Wedding Photo Sorter
+appId: uk.co.zenvisuals.zensync
+productName: Zen Sync
 copyright: Copyright © 2026 Zen Visuals
 directories:
   output: dist
@@ -23,15 +23,15 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: always
   createStartMenuShortcut: true
-  shortcutName: Wedding Photo Sorter
-  artifactName: Wedding-Photo-Sorter-Setup-${version}.${ext}
+  shortcutName: Zen Sync
+  artifactName: Zen-Sync-Setup-${version}.${ext}
 linux:
   target: [AppImage, flatpak]
   category: Graphics
   icon: build/icon.png
   syncDesktopName: true
-  synopsis: Sort wedding photos into wedding-day order
-  artifactName: Wedding-Photo-Sorter-${version}.${ext}
+  synopsis: Wedding photo sorter — every camera, one day, in order
+  artifactName: Zen-Sync-${version}.${ext}
 flatpak:
   runtime: org.freedesktop.Platform
   runtimeVersion: '24.08'
