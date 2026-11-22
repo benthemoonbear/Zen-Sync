@@ -71,6 +71,13 @@ describe('app store', () => {
     expect(s.parts.find((p) => p.id === id)!.name).toBe('First look')
   })
 
+  test('load groups photos by part so on-screen numbers match the saved order', () => {
+    const r = result()
+    r.photos = [r.photos[2], r.photos[0], r.photos[1]]
+    store.getState().load('/w', r)
+    expect(store.getState().photos.map((p) => p.name)).toEqual(['1.jpg', '2.jpg', '3.jpg'])
+  })
+
   test('nextUnsure selects the next unsure photo', () => {
     store.getState().goNextUnsure()
     expect(store.getState().current).toBe('/w/2.jpg')

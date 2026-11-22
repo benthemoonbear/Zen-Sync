@@ -36,17 +36,20 @@ export function createAppStore(deps: StoreDeps) {
     const empty = { dir: null, result: null, photos: [], partOrder: [], parts: [], selected: [], current: null, edited: false }
     return {
       ...empty,
-      load: (dir, result) =>
+      load: (dir, result) => {
+        const partOrder = result.parts.map((p) => p.id)
+        const photos = orderByParts(result.photos, partOrder)
         set({
           dir,
           result,
-          photos: result.photos,
+          photos,
           parts: result.parts,
-          partOrder: result.parts.map((p) => p.id),
-          selected: result.photos[0] ? [result.photos[0].path] : [],
-          current: result.photos[0]?.path ?? null,
+          partOrder,
+          selected: photos[0] ? [photos[0].path] : [],
+          current: photos[0]?.path ?? null,
           edited: false
-        }),
+        })
+      },
       replaceResult: (result) => {
         const { partOrder } = get()
         set({ result, photos: orderByParts(result.photos, partOrder), edited: false })
