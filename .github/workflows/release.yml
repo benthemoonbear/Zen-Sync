@@ -46,3 +46,29 @@ jobs:
           path: |
             dist/*.AppImage
             dist/*.flatpak
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, linux]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Zen Sync ${{ github.ref_name }}
+          generate_release_notes: false
+          prerelease: true
+          files: out/*
+          body: |
+            **Zen Sync ${{ github.ref_name }}**
+
+            - Buy the full version (£14.99) right inside the app — checkout by Stripe, and it unlocks itself when you've paid.
+            - Already bought? Settings → **Unlock** → **I already bought it**, and enter your key. One key works on two computers.
+            - Downloads: `.exe` for Windows, `.AppImage` or `.flatpak` for Linux.
+
+            Payments are in Stripe test mode for this pre-release.

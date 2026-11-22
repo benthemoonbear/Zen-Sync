@@ -47,16 +47,22 @@ had reset to 2015).
   attaches the `.exe`, `.AppImage` and `.flatpak` as downloads. Or on a Windows PC:
   `npm ci && npm run build && npx electron-builder --win nsis`.
 
-## Selling (Lemon Squeezy)
+## Selling (Stripe + licence server)
 
-1. Create a product priced **£14.99** with **licence keys** enabled and an **activation limit of 2**.
-2. Set two build secrets (GitHub → Settings → Secrets → Actions, or environment variables
-   when building locally):
-   - `LS_PRODUCT_ID` → the product's numeric ID (`MAIN_VITE_LS_PRODUCT_ID` locally)
-   - `LS_CHECKOUT_URL` → the product's checkout link (`MAIN_VITE_LS_CHECKOUT_URL` locally)
-3. Free version: sort and preview any size; save one folder of up to 250 photos.
-   A key unlocks any size and folder-per-part. Activation goes online once per computer,
-   then never again.
+- **Checkout:** a Stripe Payment Link (£14.99, Managed Payments, so Stripe is merchant of record and handles VAT).
+  Its address is in `src/main/payments-config.ts`. After payment Stripe redirects to the licence server's
+  `/success` page, which shows the key; the app's checkout window reads the session from that redirect and
+  activates automatically.
+- **Licence server:** `licence-server/` is a Cloudflare Worker with a D1 database. It issues `ZS-…` keys from the
+  Stripe webhook (`/stripe/webhook`: `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+  `charge.refunded` revokes), and allows 2 activations per key. Its address is also in `payments-config.ts`.
+- **Deploying the server:** the **Deploy licence server** GitHub Action runs on pushes that touch `licence-server/`.
+  It needs the repository secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and `STRIPE_WEBHOOK_SECRET`
+  (the webhook endpoint's signing secret).
+- **Going live:** once Stripe approves the account for Managed Payments, create a live Payment Link and a live
+  webhook endpoint, swap the link into `payments-config.ts` and the live signing secret into `STRIPE_WEBHOOK_SECRET`.
+- Free version: sort and preview any size; save one folder of up to 250 photos. A key unlocks any size and
+  folder-per-part. Activation goes online once per computer, then never again.
 
 ## Before release
 

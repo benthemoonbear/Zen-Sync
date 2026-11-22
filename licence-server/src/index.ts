@@ -183,8 +183,9 @@ async function success(url: URL, env: Env): Promise<Response> {
   return page(
     'Thank you',
     `<h1>Thank you${who ? `, ${esc(who)}` : ''}</h1>
-<p>Zen Sync is unlocking now. Your licence key, for your second computer:</p><code>${esc(lic.key)}</code>
-<p>You can close this window. Your receipt is on its way from Stripe.</p>`
+<p>Here's your Zen Sync licence key. Keep it somewhere safe: it works on two computers.</p><code>${esc(lic.key)}</code>
+<p>If you bought from inside Zen Sync, it's already unlocked. Otherwise open Zen Sync, click <b>Unlock</b>, choose <b>I already bought it</b> and enter the key.</p>
+<p>Your receipt is on its way from Stripe.</p>`
   )
 }
 

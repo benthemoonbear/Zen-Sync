@@ -3,6 +3,7 @@ import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type D
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { Part } from '../../main/core/types'
+import { UnlockPanel } from './UnlockDialog'
 
 function Row({ part, i, total, onChange, onMove, onRemove }: {
   part: Part; i: number; total: number
@@ -24,6 +25,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const [parts, setParts] = useState<Part[]>([])
   const [licence, setLicence] = useState<{ licensed: boolean; customerName?: string; key?: string } | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [unlocking, setUnlocking] = useState(false)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
 
   useEffect(() => {
@@ -52,6 +54,15 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      {unlocking ? (
+        <UnlockPanel
+          onClose={() => setUnlocking(false)}
+          onUnlocked={() => {
+            setUnlocking(false)
+            void window.api.licence().then(setLicence)
+          }}
+        />
+      ) : (
       <div className="dialog" style={{ width: 'min(560px, 92vw)' }}>
         <h2>Settings</h2>
         <p>Parts of the day, in order. Drag to reorder. Changes apply the next time you sort a folder.</p>
@@ -82,7 +93,10 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
               )}
             </div>
           ) : (
-            <span className="hint">Free version · saves up to 250 photos in one folder</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className="hint" style={{ flex: 1 }}>Free version · saves up to 250 photos in one folder</span>
+              <button onClick={() => setUnlocking(true)}>Unlock</button>
+            </div>
           )}
           {message && <p className="error">{message}</p>}
         </div>
@@ -91,6 +105,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           <button className="primary" onClick={save}>Save settings</button>
         </div>
       </div>
+      )}
     </div>
   )
 }

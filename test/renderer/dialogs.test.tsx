@@ -137,6 +137,15 @@ describe('SettingsDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Deactivate this computer' }))
     await waitFor(() => expect(api.deactivate).toHaveBeenCalled())
   })
+
+  test('an unlicensed user can enter a key they bought from Settings', async () => {
+    const { api } = await openSettings()
+    fireEvent.click(await screen.findByRole('button', { name: 'Unlock' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'I already bought it' }))
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'ZS-AAAA-BBBB-CCCC-DDDD' } })
+    fireEvent.click(screen.getByRole('button', { name: /Activate/ }))
+    await waitFor(() => expect(api.activate).toHaveBeenCalledWith('ZS-AAAA-BBBB-CCCC-DDDD'))
+  })
 })
 
 test('number keys do nothing while a dialog is open', async () => {
