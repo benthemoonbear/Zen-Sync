@@ -85,4 +85,4 @@ jobs:
             - Already bought? Settings → **Unlock** → **I already bought it**, and enter your key. One key works on two computers.
             - Downloads: `.exe` for Windows, `.AppImage` or `.flatpak` for Linux.
 
-            Payments are in Stripe test mode for this pre-release.
+
