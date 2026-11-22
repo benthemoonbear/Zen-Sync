@@ -64,3 +64,12 @@ had reset to 2015).
 - Windows code-signing certificate (to avoid SmartScreen warnings), and later an Apple
   Developer account for the Mac `.dmg` (config is already in `electron-builder.yml`).
 - Submit the Flatpak to Flathub.
+
+### Windows installer from Linux (no Wine)
+
+`npm run dist:win:linux` packages the Windows app with electron-builder (`--win dir`) and wraps it with the
+native Linux `makensis` (`sudo apt install nsis`) using `installer/zen-sync.nsi`: a per-user installer
+(no admin rights) with Start menu + desktop shortcuts and an uninstaller in Windows' Apps list.
+Install `@img/sharp-win32-x64` first (`npm i --no-save --force @img/sharp-win32-x64@<sharp's version>`).
+The app's own .exe keeps Electron's default icon this way (setting it needs Wine or a Windows build);
+shortcuts and the installer use the Zen Sync icon.

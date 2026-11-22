@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
     "dist:linux": "npm run build && electron-builder --linux",
-    "dist:win": "npm run build && electron-builder --win"
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:win:linux": "npm run build && electron-builder --win dir && cd installer && makensis -DVERSION=$npm_package_version zen-sync.nsi"
   },
   "devDependencies": {
     "@testing-library/react": "^16.3.3",
