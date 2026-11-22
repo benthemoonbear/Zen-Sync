@@ -1,0 +1,23 @@
+name: Remove old releases
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/cleanup-releases.yml']
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Delete v0.1.0 and v0.2.0 (no live payments) and their tags
+        run: |
+          for t in v0.1.0 v0.2.0; do
+            gh release delete "$t" --cleanup-tag --yes || echo "$t already gone"
+          done
+      - name: Make v0.2.1 the latest full release
+        run: gh release edit v0.2.1 --prerelease=false --latest

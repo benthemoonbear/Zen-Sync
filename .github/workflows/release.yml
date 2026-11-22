@@ -76,7 +76,7 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: Zen Sync ${{ steps.ver.outputs.tag }}
           generate_release_notes: false
-          prerelease: true
+          prerelease: false
           files: out/*
           body: |
             **Zen Sync ${{ steps.ver.outputs.tag }}**
