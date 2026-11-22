@@ -81,8 +81,9 @@ jobs:
           body: |
             **Zen Sync ${{ steps.ver.outputs.tag }}**
 
-            - Buy the full version (£14.99) right inside the app — checkout by Stripe, and it unlocks itself when you've paid.
-            - Already bought? Settings → **Unlock** → **I already bought it**, and enter your key. One key works on two computers.
+            - **Type of event:** weddings, corporate events, parties and birthdays, christenings and engagement shoots, each with its own parts of the day.
+            - **Folders with sub-folders:** give parts a folder in Settings and "Folder per part" saves them inside it, e.g. `02 Ceremony/03 Signing`.
+            - **Sub-folders are read too:** drag in a job folder with `Camera A/`, `Camera B/` inside and everything is sorted together.
+            - Parts you add yourself are now recognised from their name.
+            - Buy the full version (£14.99) inside the app; one key works on two computers.
             - Downloads: `.exe` for Windows, `.AppImage` or `.flatpak` for Linux.
-
-
