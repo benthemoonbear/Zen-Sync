@@ -6,7 +6,7 @@ import data from './public/data.json'
 const result = { ...data, parts: DEFAULT_PARTS }
 let progressCb: any
 ;(window as any).api = {
-  chooseFolder: async () => '/home/ben/Pictures/bakewell wedding',
+  chooseFolder: async () => (location.search.includes('demo') ? '/home/you/Pictures/Smith wedding' : '/home/ben/Pictures/bakewell wedding'),
   sort: () =>
     new Promise((resolve) => {
       if (!location.search.includes('slow')) return resolve(result)
