@@ -6,14 +6,14 @@ import { mergeCameras } from './merge'
 import { scanFolder } from './scan'
 import { assignMonotonic } from './smooth'
 import type { Part, PhotoFile, Skipped, SortResult } from './types'
+import { applyCorrections, type CorrectionSet } from './corrections'
 
 export type Stage = 'scan' | 'analyse' | 'arrange'
 
 export interface SortDeps {
   embedder: Embedder
   parts: Part[]
-  /** Added in Task 9. */
-  corrections?: unknown
+  corrections?: CorrectionSet
   onProgress?: (stage: Stage, done: number, total: number) => void
 }
 
@@ -70,7 +70,8 @@ export async function runSort(dir: string, deps: SortDeps): Promise<SortSession>
   const cameras = groupCameras(photos)
   const partEmbs = await partTextEmbeddings(parts, embedder)
   const images = photos.map((p) => embs.get(p.path)!)
-  const rows = scoreParts(images, partEmbs)
+  let rows = scoreParts(images, partEmbs)
+  if (deps.corrections?.length) rows = applyCorrections(rows, images, deps.corrections, parts)
   const scores = new Map(photos.map((p, i) => [p.path, rows[i]]))
 
   const floating = parts.map((p) => !!p.floating)

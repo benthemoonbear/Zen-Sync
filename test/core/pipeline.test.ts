@@ -87,3 +87,12 @@ test('a photo the model cannot read is skipped, the rest still sort', async () =
   expect(result.photos).toHaveLength(4)
   expect(result.skipped.map((s) => s.name).sort()).toEqual(['AAA002.jpg', 'broken.jpg'])
 })
+
+test('corrections from earlier weddings steer the sort', async () => {
+  const { dir, emb } = await wedding()
+  const { addCorrection } = await import('../../src/main/core/corrections')
+  const [aaa1] = await emb.embedImages([join(dir, 'AAA001.jpg')])
+  const corrections = addCorrection([], aaa1, 'confetti')
+  const { result } = await runSort(dir, { embedder: emb, parts, corrections })
+  expect(result.photos.find((p) => p.name === 'AAA001.jpg')!.partId).toBe('confetti')
+})
