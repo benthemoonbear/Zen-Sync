@@ -1,11 +1,30 @@
 import { randomBytes } from 'node:crypto'
 import { constants } from 'node:fs'
 import { copyFile, mkdir, rename, rm, stat } from 'node:fs/promises'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { join } from 'node:path'
 import { canSave } from './licence'
 import type { Part, SaveMode, SortedPhoto } from './types'
 
 export const OUTPUT_FOLDER = 'numbered'
+
+/** File operations that can be swapped in tests (Windows locking behaviour). */
+export const fsOps = { rename }
+
+const RENAME_TRIES = 6
+
+/** Windows often holds a just-written folder briefly (antivirus, indexer, Explorer): retry. */
+async function renameWithRetry(from: string, to: string): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fsOps.rename(from, to)
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code
+      if (attempt >= RENAME_TRIES || !['EPERM', 'EBUSY', 'EACCES'].includes(code ?? '')) throw e
+      await sleep(150 * attempt)
+    }
+  }
+}
 
 export interface PlannedCopy {
   src: string
@@ -59,18 +78,37 @@ export async function writeCopies(
   const out = join(inputDir, folder)
   if ((await exists(out)) && !opts.overwrite) return { exists: true }
 
-  const tmp = join(inputDir, `${folder}.tmp-${randomBytes(4).toString('hex')}`)
+  const id = randomBytes(4).toString('hex')
+  const tmp = join(inputDir, `${folder}.tmp-${id}`)
+  const backup = join(inputDir, `${folder}.old-${id}`)
   try {
     for (const c of plan) {
       const dest = join(tmp, ...c.rel.split('/'))
       await mkdir(join(dest, '..'), { recursive: true })
       await copyFile(c.src, dest, constants.COPYFILE_EXCL)
     }
-    if (await exists(out)) await rm(out, { recursive: true, force: true })
-    await rename(tmp, out)
   } catch (e) {
     await rm(tmp, { recursive: true, force: true })
     throw e
   }
+
+  // Keep the old folder until the new one is safely in place.
+  const hadOld = await exists(out)
+  if (hadOld) {
+    try {
+      await renameWithRetry(out, backup)
+    } catch (e) {
+      await rm(tmp, { recursive: true, force: true })
+      throw e
+    }
+  }
+  try {
+    await renameWithRetry(tmp, out)
+  } catch (e) {
+    if (hadOld) await renameWithRetry(backup, out).catch(() => undefined)
+    await rm(tmp, { recursive: true, force: true })
+    throw e
+  }
+  if (hadOld) await rm(backup, { recursive: true, force: true }).catch(() => undefined)
   return { written: plan.length }
 }

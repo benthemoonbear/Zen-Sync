@@ -34,7 +34,7 @@ export function findClockOffsets(cameras: Camera[], embs: Map<string, Float32Arr
 
   const out: ClockSuggestion[] = []
   for (const other of withTimes) {
-    if (other === ref) continue
+    if (other === ref || !other.c.timed) continue
     const [few, many, sign] = other.t.length <= ref.t.length ? [other.t, ref.t, 1] : [ref.t, other.t, -1]
     const offsets: number[] = []
     for (const p of few) {

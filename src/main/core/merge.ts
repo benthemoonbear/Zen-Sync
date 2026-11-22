@@ -86,7 +86,8 @@ function orderPart(items: Item[], embs: Map<string, Float32Array>): Item[] {
   for (const i of untimed) byCamera.set(i.camera.id, [...(byCamera.get(i.camera.id) ?? []), i])
   for (const seqItems of byCamera.values()) {
     seqItems.sort((a, b) => a.seq - b.seq)
-    let floor = -Infinity
+    const anchors: number[] = []
+    const weights: number[] = []
     for (const i of seqItems) {
       const e = embs.get(i.photo.path)
       let best = timed[0]
@@ -102,9 +103,10 @@ function orderPart(items: Item[], embs: Map<string, Float32Array>): Item[] {
           }
         }
       }
-      i.key = Math.max(floor, best.key)
-      floor = i.key
+      anchors.push(best.key)
+      weights.push(Math.max(1e-3, bestSim) ** 4)
     }
+    isotonic(anchors, weights).forEach((k, n) => (seqItems[n].key = k))
   }
 
   return [...items].sort(
@@ -114,4 +116,24 @@ function orderPart(items: Item[], embs: Map<string, Float32Array>): Item[] {
       (a.camera.id === b.camera.id ? a.seq - b.seq : 0) ||
       compareFiles(a.photo, b.photo)
   )
+}
+
+/**
+ * Weighted isotonic regression (pool adjacent violators): the closest non-decreasing sequence
+ * to the anchor times. Strong matches dominate, so one weak early match to a late photo can't
+ * drag the rest of a camera's sequence to the end.
+ */
+export function isotonic(values: number[], weights: number[]): number[] {
+  const blocks: { sum: number; w: number; n: number; first: number }[] = []
+  values.forEach((v, i) => {
+    blocks.push({ sum: v * weights[i], w: weights[i], n: 1, first: v })
+    while (blocks.length > 1 && blocks[blocks.length - 2].sum / blocks[blocks.length - 2].w > blocks[blocks.length - 1].sum / blocks[blocks.length - 1].w) {
+      const b = blocks.pop()!
+      const a = blocks[blocks.length - 1]
+      a.sum += b.sum
+      a.w += b.w
+      a.n += b.n
+    }
+  })
+  return blocks.flatMap((b) => Array<number>(b.n).fill(b.n === 1 ? b.first : b.sum / b.w))
 }

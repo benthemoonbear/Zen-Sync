@@ -49,6 +49,7 @@ export async function activate(
   deps: LicenceDeps
 ): Promise<{ ok: true; state: LicenceState } | { ok: false; message: string }> {
   const key = rawKey.trim()
+  if (!deps.productId) return { ok: false, message: "This copy of the app isn't set up for licences yet. Contact support." }
   let r: Awaited<ReturnType<typeof post>>
   try {
     r = await post(deps, 'activate', { license_key: key, instance_name: deps.instanceName })
@@ -64,7 +65,16 @@ export async function activate(
     if (r.status >= 500) return { ok: false, message: NETWORK_MESSAGE }
     return { ok: false, message: "That key wasn't recognised. Check it and try again." }
   }
-  if (Number(body.meta?.product_id) !== deps.productId) return { ok: false, message: 'This key is for a different product.' }
+  if (Number(body.meta?.product_id) !== deps.productId) {
+    if (body.instance?.id) {
+      try {
+        await post(deps, 'deactivate', { license_key: key, instance_id: String(body.instance.id) })
+      } catch {
+        // best effort: the key is still rejected
+      }
+    }
+    return { ok: false, message: 'This key is for a different product.' }
+  }
   return {
     ok: true,
     state: {

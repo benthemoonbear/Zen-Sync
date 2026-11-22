@@ -40,10 +40,13 @@ export function DropScreen() {
       }
       appStore().getState().load(dir, result)
     } catch (e) {
+      const msg = String((e as Error)?.message ?? '')
       setError(
-        String((e as Error)?.message ?? '').includes('MODEL_DOWNLOAD_FAILED')
+        msg.includes('MODEL_DOWNLOAD_FAILED')
           ? "Couldn't download the photo model. Check your internet connection and try again — it's only needed once."
-          : "Couldn't sort that folder. Check it contains finished JPEGs and try again."
+          : msg.includes('MODEL_FAILED')
+            ? "The photo model couldn't run on this computer. Close other apps and try again."
+            : "Couldn't sort that folder. Check it contains finished JPEGs and try again."
       )
     } finally {
       setBusy(false)

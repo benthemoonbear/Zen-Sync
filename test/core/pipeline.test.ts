@@ -96,3 +96,23 @@ test('corrections from earlier weddings steer the sort', async () => {
   const { result } = await runSort(dir, { embedder: emb, parts, corrections })
   expect(result.photos.find((p) => p.name === 'AAA001.jpg')!.partId).toBe('confetti')
 })
+
+test('a photo the smoothing moved away from a confident choice is marked unsure', async () => {
+  const dir = await tempDir()
+  for (const [n, t] of [['C001', '12:00:00'], ['C002', '12:01:00'], ['C003', '12:02:00'], ['C004', '12:03:00']])
+    await writeJpeg(dir, `${n}.jpg`, exif(`2026:11:07 ${t}`))
+  const emb = new FakeEmbedder({
+    ceremony: [1, 0, 0, 0], confetti: [0, 1, 0, 0],
+    'C001.jpg': [1, 0, 0, 0], 'C002.jpg': [0.2, 1, 0, 0], 'C003.jpg': [1, 0, 0, 0], 'C004.jpg': [1, 0, 0, 0]
+  })
+  const s = await runSort(dir, { embedder: emb, parts })
+  const c2 = s.result.photos.find((p) => p.name === 'C002.jpg')!
+  expect(c2.partId).toBe('ceremony')
+  expect(c2.unsure).toBe(true)
+})
+
+test('if the model fails on every photo, the sort fails with MODEL_FAILED', async () => {
+  const { dir, emb } = await wedding()
+  const broken = { embedTexts: (t: string[]) => emb.embedTexts(t), embedImages: async () => { throw new Error('out of memory') } }
+  await expect(runSort(dir, { embedder: broken, parts })).rejects.toThrow('MODEL_FAILED')
+})

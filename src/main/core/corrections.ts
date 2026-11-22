@@ -6,8 +6,18 @@ export type CorrectionSet = { emb: number[]; partId: string }[]
 export const MAX_CORRECTIONS = 5000
 export const CORRECTION_SIM = 0.9
 
+const SAME_PHOTO_SIM = 0.999
+
+function dot(a: Float32Array, b: number[]): number {
+  let s = 0
+  for (let i = 0; i < a.length; i++) s += a[i] * b[i]
+  return s
+}
+
+/** Adds a correction; a newer correction for the same photo replaces the older one. */
 export function addCorrection(set: CorrectionSet, emb: Float32Array, partId: string): CorrectionSet {
-  const next = [...set, { emb: Array.from(emb), partId }]
+  const kept = set.filter((c) => dot(emb, c.emb) < SAME_PHOTO_SIM)
+  const next = [...kept, { emb: Array.from(emb), partId }]
   return next.length > MAX_CORRECTIONS ? next.slice(next.length - MAX_CORRECTIONS) : next
 }
 
@@ -25,7 +35,7 @@ export function applyCorrections(scores: number[][], images: Float32Array[], set
     let bestSim = -Infinity
     usable.forEach((c, k) => {
       const s = cosine(images[i], c.emb)
-      if (s > bestSim) {
+      if (s >= bestSim) {
         bestSim = s
         best = k
       }

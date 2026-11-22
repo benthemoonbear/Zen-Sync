@@ -40,11 +40,11 @@ describe('mergeCameras', () => {
     expect(run([a, b], { a1: 0, a2: 0, a3: 0, b1: 0, b2: 0 }, embs)).toEqual(['a1', 'b1', 'a2', 'a3', 'b2'])
   })
 
-  test('untimed anchors never go backwards', () => {
+  test('untimed photos keep their own order when their matches go backwards (they settle between them)', () => {
     const a = cam('A', [ph('a1', 1), ph('a2', 2), ph('a3', 3)])
     const b = cam('B', [ph('b1'), ph('b2')])
     const embs = { a1: basis(1), a2: basis(2), a3: basis(3), b1: basis(3), b2: basis(1) }
-    expect(run([a, b], { a1: 0, a2: 0, a3: 0, b1: 0, b2: 0 }, embs)).toEqual(['a1', 'a2', 'a3', 'b1', 'b2'])
+    expect(run([a, b], { a1: 0, a2: 0, a3: 0, b1: 0, b2: 0 }, embs)).toEqual(['a1', 'a2', 'b1', 'b2', 'a3'])
   })
 
   test('part with no timed photos interleaves cameras by relative position', () => {
@@ -69,4 +69,29 @@ describe('mergeCameras', () => {
     const out = mergeCameras({ cameras: [a], partOf: new Map([['/x/a1', 1]]), offsets: new Map([['A', 10]]), embs: new Map(), partOrder: ['p0', 'p1'], parts })
     expect(out[0]).toMatchObject({ partId: 'p1', correctedMs: 1010, cameraId: 'A', unsure: false })
   })
+})
+
+test('an untimed camera still interleaves when one early match is a noisy outlier', () => {
+  const N = 20
+  const a = cam('A', Array.from({ length: N }, (_, i) => ph(`a${i}`, i * 1000)))
+  const b = cam('B', Array.from({ length: N }, (_, i) => ph(`b${i}`)))
+  const embs: Record<string, Float32Array> = {}
+  const dim = 64
+  const vec = (i: number, j: number, w: number) => {
+    const v = new Float32Array(dim).fill(0.01)
+    v[i] = 1
+    v[j] += w
+    return normalise(v)
+  }
+  for (let i = 0; i < N; i++) embs[`a${i}`] = vec(i, 40, 0)
+  for (let i = 0; i < N; i++) embs[`b${i}`] = vec(i, 40 + (i % 3), 0.3)
+  embs['b2'] = vec(18, 50, 1.2)
+  const partOf = Object.fromEntries([...a.photos, ...b.photos].map((p) => [p.name, 0]))
+  const order = run([a, b], partOf, embs)
+  for (let i = 0; i < N; i++) {
+    if (i === 2) continue
+    const pos = order.indexOf(`b${i}`)
+    const ideal = order.indexOf(`a${i}`) + 1
+    expect(Math.abs(pos - ideal)).toBeLessThanOrEqual(4)
+  }
 })

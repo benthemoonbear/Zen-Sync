@@ -75,3 +75,23 @@ describe('isLicensed and deactivate', () => {
     expect(body.get('instance_id')).toBe('i1')
   })
 })
+
+describe('activation safety', () => {
+  test('a build without a product ID refuses without using up an activation', async () => {
+    const fetch = vi.fn()
+    const r = await activate('K', { fetch: fetch as never, instanceName: 'x', productId: 0 })
+    expect(r).toEqual({ ok: false, message: "This copy of the app isn't set up for licences yet. Contact support." })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  test('a key for a different product is released again', async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(json(200, { activated: true, instance: { id: 'inst-9' }, meta: { customer_name: 'J', product_id: 7 } }))
+      .mockResolvedValueOnce(json(200, { deactivated: true }))
+    await activate('K', deps(fetch as never))
+    expect(fetch).toHaveBeenCalledTimes(2)
+    const [url, init] = fetch.mock.calls[1] as unknown as [string, RequestInit]
+    expect(url).toBe('https://api.lemonsqueezy.com/v1/licenses/deactivate')
+    expect(new URLSearchParams(String(init.body)).get('instance_id')).toBe('inst-9')
+  })
+})

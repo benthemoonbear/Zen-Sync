@@ -22,8 +22,11 @@ test('dissimilar corrections change nothing', () => {
 })
 
 test('cap drops oldest', () => {
-  let set = addCorrection([], v(1, 0, 0), 'signing')
-  for (let i = 0; i < MAX_CORRECTIONS; i++) set = addCorrection(set, v(0, 1, 0), 'ceremony')
+  let seed = 7
+  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1
+  const random = () => normalise(Float32Array.from({ length: 32 }, rand))
+  let set = [{ emb: Array.from(random()), partId: 'signing' }, ...Array.from({ length: MAX_CORRECTIONS - 1 }, () => ({ emb: Array.from(random()), partId: 'ceremony' }))]
+  set = addCorrection(set, random(), 'ceremony')
   expect(set).toHaveLength(MAX_CORRECTIONS)
   expect(set.every((c) => c.partId === 'ceremony')).toBe(true)
 })
@@ -31,4 +34,12 @@ test('cap drops oldest', () => {
 test('unknown partId (part deleted) is ignored', () => {
   const set = addCorrection([], v(1, 0, 0), 'gone')
   expect(applyCorrections([[0.6, 0.4]], [v(1, 0, 0)], set, parts)).toEqual([[0.6, 0.4]])
+})
+
+test('a newer correction for the same photo replaces the older one', () => {
+  let set = addCorrection([], v(1, 0, 0), 'ceremony')
+  set = addCorrection(set, v(1, 0, 0), 'signing')
+  expect(set).toHaveLength(1)
+  const [row] = applyCorrections([[0.5, 0.5]], [v(1, 0, 0)], set, parts)
+  expect(row[0]).toBeGreaterThan(row[1])
 })

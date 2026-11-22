@@ -1,5 +1,5 @@
 import { groupCameras } from './cameras'
-import { isUnsure, partTextEmbeddings, scoreParts } from './classify'
+import { argmax, isUnsure, partTextEmbeddings, scoreParts } from './classify'
 import { findClockOffsets } from './clock'
 import type { Embedder } from './embed'
 import { mergeCameras } from './merge'
@@ -63,6 +63,7 @@ export async function runSort(dir: string, deps: SortDeps): Promise<SortSession>
   onProgress?.('scan', 1, 1)
 
   const { embs, failed } = await embedAll(scanned.photos, embedder, (d, t) => onProgress?.('analyse', d, t))
+  if (scanned.photos.length && !embs.size) throw new Error('MODEL_FAILED')
   const photos = scanned.photos.filter((p) => embs.has(p.path))
   const skipped = [...scanned.skipped, ...failed]
 
@@ -103,7 +104,11 @@ function remerge(s: SortSession): void {
     embs: s.embs,
     partOrder: parts.map((p) => p.id),
     parts
-  }).map((p) => ({ ...p, unsure: isUnsure(s.scores.get(p.path)!) || s.scores.get(p.path)!.length === 0 }))
+  }).map((p) => {
+    const row = s.scores.get(p.path)!
+    const overridden = argmax(row) !== s.partOf.get(p.path)
+    return { ...p, unsure: isUnsure(row) || overridden }
+  })
 }
 
 /** Accepts the suggested clock correction for one camera and re-merges. */

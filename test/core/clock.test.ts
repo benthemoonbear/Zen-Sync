@@ -73,3 +73,13 @@ describe('findClockOffsets', () => {
     expect(Math.abs(s.offsetMs - (Date.UTC(2026, 10, 7, 12, 33) - Date.UTC(2015, 0, 1, 3, 15)))).toBeLessThanOrEqual(60_000)
   })
 })
+
+test('no suggestion for a camera where only some photos have times (a fix could not apply)', () => {
+  const a = cam('A', [1, 2, 3, 4].map((i) => photo(`a${i}`, T0 + i * 60_000)))
+  const partial = cam('B', [photo('b1', T0 + 60_000 - OFFSET), photo('b2', T0 + 120_000 - OFFSET), photo('b3')])
+  const embs = new Map<string, Float32Array>([
+    ['/x/a1', basis(1)], ['/x/a2', basis(2)], ['/x/a3', basis(3)], ['/x/a4', basis(4)],
+    ['/x/b1', basis(1)], ['/x/b2', basis(2)], ['/x/b3', basis(3)]
+  ])
+  expect(findClockOffsets([a, partial], embs)).toEqual([])
+})
