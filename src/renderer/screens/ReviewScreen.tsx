@@ -30,14 +30,14 @@ function NewPartPrompt({ onDone }: { onDone: (name: string | null) => void }) {
   )
 }
 
-export function ReviewScreen({ onSave, onSettings }: { onSave: () => void; onSettings: () => void }) {
+export function ReviewScreen({ onSave, onSettings, dialogOpen = false }: { onSave: () => void; onSettings: () => void; dialogOpen?: boolean }) {
   const dir = useApp((s) => s.dir)
   const photos = useApp((s) => s.photos)
   const result = useApp((s) => s.result)
   const [newPartAfter, setNewPartAfter] = useState<string | null | undefined>(undefined)
   const [showSkipped, setShowSkipped] = useState(false)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
-  useKeyboard(newPartAfter === undefined)
+  useKeyboard(newPartAfter === undefined && !dialogOpen)
 
   function onDragEnd({ active, over }: DragEndEvent) {
     if (!over) return
