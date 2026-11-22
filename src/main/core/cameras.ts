@@ -49,7 +49,14 @@ export function groupCameras(photos: PhotoFile[]): Camera[] {
       if (id) ids.set(id, [...(ids.get(id) ?? []), p])
       else unknown.push(p)
     }
-    if (ids.size <= 1) {
+    const folders = new Set(unknown.map((p) => p.folder ?? ''))
+    if (ids.size === 0 && folders.size > 1) {
+      // No camera details at all: different sub-folders are the best clue to different cameras.
+      for (const f of [...folders].sort()) {
+        const ps = unknown.filter((p) => (p.folder ?? '') === f)
+        cameras.push(makeCamera(`prefix:${prefix}|folder:${f}`, f.split('/').pop() || prefix, ps))
+      }
+    } else if (ids.size <= 1) {
       const only = [...ids.values()][0] ?? []
       const model = only.find((p) => p.model)?.model
       cameras.push(makeCamera(`prefix:${prefix}`, model ?? prefix, [...only, ...unknown]))

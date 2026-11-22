@@ -17,6 +17,17 @@ describe('groupCameras', () => {
     expect(byPrefix.map((c) => c.id).sort()).toEqual(['prefix:BHV', 'prefix:DSC'])
   })
 
+  test('same-named files without camera details in different sub-folders are kept apart', () => {
+    const cams = groupCameras([p('IMG_1.jpg', { folder: 'Ben' }), p('IMG_1.jpg', { folder: 'Zuzia' }), p('IMG_2.jpg', { folder: 'Ben' })])
+    expect(cams.map((c) => c.photos.length)).toEqual([2, 1])
+    expect(cams.map((c) => c.label)).toEqual(['Ben', 'Zuzia'])
+  })
+
+  test('sub-folders do not split a camera that has camera details', () => {
+    const cams = groupCameras([p('IMG_1.jpg', { folder: 'Ceremony', serial: 'S' }), p('IMG_2.jpg', { folder: 'Reception', serial: 'S' })])
+    expect(cams).toHaveLength(1)
+  })
+
   test('a lone metadata-bearing file joins its prefix group', () => {
     const cams = groupCameras([p('DSC03271.jpg'), p('DSC03272.jpg'), p('DSC03272-3.jpg', { model: 'ILME-FX3', captureMs: 5 })])
     expect(cams).toHaveLength(1)

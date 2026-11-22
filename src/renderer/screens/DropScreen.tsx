@@ -37,7 +37,7 @@ export function DropScreen() {
     try {
       const result = await window.api.sort(dir)
       if (!result.photos.length) {
-        setError('No JPEG photos were found in that folder.')
+        setError('No JPEG photos were found in that folder or its sub-folders.')
         return
       }
       appStore().getState().load(dir, result)

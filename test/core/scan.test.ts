@@ -19,6 +19,24 @@ describe('scanFolder', () => {
     expect(photos.map((p) => p.name).sort()).toEqual(['B.JPG', 'a.jpg', 'c.jpeg'])
   })
 
+  test('finds photos inside sub-folders, skipping numbered/ output, its temp folders and hidden folders', async () => {
+    const dir = await tempDir()
+    await writeJpeg(dir, 'top.jpg')
+    await mkdir(join(dir, 'Camera A', 'Ceremony'), { recursive: true })
+    await writeJpeg(join(dir, 'Camera A'), 'IMG_1.jpg')
+    await writeJpeg(join(dir, 'Camera A', 'Ceremony'), 'IMG_2.jpg')
+    for (const skip of ['numbered', 'numbered.tmp-ab12', 'numbered.old-ab12', '.thumbs']) {
+      await mkdir(join(dir, skip))
+      await writeJpeg(join(dir, skip), 'nope.jpg')
+    }
+    const { photos } = await scanFolder(dir)
+    expect(photos.map((p) => [p.name, p.folder])).toEqual([
+      ['IMG_2.jpg', 'Camera A/Ceremony'],
+      ['IMG_1.jpg', 'Camera A'],
+      ['top.jpg', '']
+    ])
+  })
+
   test('reads DateTimeOriginal + SubSecTimeOriginal as captureMs', async () => {
     const dir = await tempDir()
     await writeJpeg(dir, 'x.jpg', {

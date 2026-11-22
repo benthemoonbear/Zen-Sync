@@ -1,6 +1,8 @@
 export interface PhotoFile {
   path: string
   name: string
+  /** Sub-folder of the dropped folder it was found in ('' at the top), "/" separated */
+  folder?: string
   size: number
   captureMs?: number
   make?: string

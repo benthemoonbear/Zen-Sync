@@ -45,17 +45,37 @@ function text(v: unknown): string | undefined {
   return undefined
 }
 
-export async function scanFolder(dir: string): Promise<{ photos: PhotoFile[]; skipped: Skipped[] }> {
+/** Our own output folders (and their temp/backup copies while saving) are never read back in. */
+const SKIP_DIR = /^(\.|numbered(\.(tmp|old)-[0-9a-f]+)?$)/i
+const MAX_DEPTH = 6
+
+async function listJpegs(dir: string, rel: string, depth: number, out: { path: string; name: string; folder: string }[]): Promise<void> {
   const entries = await readdir(dir, { withFileTypes: true })
+  for (const e of entries) {
+    if (e.isDirectory()) {
+      if (depth < MAX_DEPTH && !SKIP_DIR.test(e.name)) {
+        await listJpegs(join(dir, e.name), rel ? `${rel}/${e.name}` : e.name, depth + 1, out)
+      }
+    } else if (e.isFile() && JPEG_NAME.test(e.name)) {
+      out.push({ path: join(dir, e.name), name: e.name, folder: rel })
+    }
+  }
+}
+
+/** Finds every JPEG in the folder and its sub-folders (not our own output) and reads its camera details. */
+export async function scanFolder(dir: string): Promise<{ photos: PhotoFile[]; skipped: Skipped[] }> {
+  const files: { path: string; name: string; folder: string }[] = []
+  await listJpegs(dir, '', 0, files)
+  const relName = (f: { name: string; folder: string }) => (f.folder ? `${f.folder}/${f.name}` : f.name)
+  files.sort((a, b) => relName(a).localeCompare(relName(b)))
   const photos: PhotoFile[] = []
   const skipped: Skipped[] = []
-  for (const e of entries) {
-    if (!e.isFile() || !JPEG_NAME.test(e.name)) continue
-    const path = join(dir, e.name)
+  for (const f of files) {
+    const path = f.path
     try {
       const { size } = await stat(path)
       if (!(await looksLikeJpeg(path, size))) {
-        skipped.push({ name: e.name, reason: "Couldn't read this file as a JPEG" })
+        skipped.push({ name: relName(f), reason: "Couldn't read this file as a JPEG" })
         continue
       }
       let meta: Record<string, unknown> | undefined
@@ -66,7 +86,8 @@ export async function scanFolder(dir: string): Promise<{ photos: PhotoFile[]; sk
       }
       photos.push({
         path,
-        name: e.name,
+        name: f.name,
+        folder: f.folder,
         size,
         captureMs: parseExifTime(meta?.DateTimeOriginal, meta?.SubSecTimeOriginal),
         make: text(meta?.Make),
@@ -74,9 +95,8 @@ export async function scanFolder(dir: string): Promise<{ photos: PhotoFile[]; sk
         serial: text(meta?.SerialNumber) ?? text(meta?.BodySerialNumber)
       })
     } catch {
-      skipped.push({ name: e.name, reason: "Couldn't read this file" })
+      skipped.push({ name: relName(f), reason: "Couldn't read this file" })
     }
   }
-  photos.sort((a, b) => a.name.localeCompare(b.name))
   return { photos, skipped }
 }
