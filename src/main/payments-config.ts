@@ -6,5 +6,5 @@ export const PAYMENTS = {
   /** Stripe Payment Link (Managed Payments on). Test mode until going live. */
   checkoutUrl: 'https://buy.stripe.com/test_5kQ7sM3tc4UY0Wn6rF7IY00',
   /** Zen Sync licence server (Cloudflare Worker). Filled in after the first deploy. */
-  licenceServerUrl: ''
+  licenceServerUrl: 'https://zen-sync-licences.haywood1999.workers.dev'
 }
