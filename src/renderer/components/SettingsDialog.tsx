@@ -22,7 +22,7 @@ function Row({ part, i, total, onChange, onMove, onRemove }: {
 
 export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const [parts, setParts] = useState<Part[]>([])
-  const [licence, setLicence] = useState<{ licensed: boolean; customerName?: string } | null>(null)
+  const [licence, setLicence] = useState<{ licensed: boolean; customerName?: string; key?: string } | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
 
@@ -70,9 +70,16 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
         <button onClick={() => setParts([...parts, { id: `custom-${Date.now().toString(36)}`, name: '', prompts: [] }])}>Add a part</button>
         <div style={{ borderTop: '1px solid var(--line)', paddingTop: 12 }}>
           {licence?.licensed ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ flex: 1 }}>Licensed to {licence.customerName}</span>
-              <button onClick={deactivate}>Deactivate this computer</button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ flex: 1 }}>Licensed to {licence.customerName}</span>
+                <button onClick={deactivate}>Deactivate this computer</button>
+              </div>
+              {licence.key && (
+                <span className="hint">
+                  Key for your second computer: <code style={{ userSelect: 'all', color: 'var(--accent)' }}>{licence.key}</code>
+                </span>
+              )}
             </div>
           ) : (
             <span className="hint">Free version · saves up to 250 photos in one folder</span>

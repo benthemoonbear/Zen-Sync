@@ -39,7 +39,7 @@ export function mockApi(overrides: Partial<Api> = {}) {
     licence: vi.fn(async () => ({ licensed: false })),
     activate: vi.fn(async () => ({ ok: true as const, customerName: 'Jane Smith' })),
     deactivate: vi.fn(async () => ({ ok: true })),
-    openBuyPage: vi.fn(async () => {}),
+    buy: vi.fn(async () => ({ ok: true as const, customerName: 'Jane Smith' })),
     showFolder: vi.fn(async () => {}),
     pathForFile: vi.fn(() => '/w/dropped wedding'),
     ...overrides

@@ -28,10 +28,10 @@ export interface Api {
   save(req: SaveRequest): Promise<SaveResponse>
   getParts(): Promise<Part[]>
   setParts(parts: Part[]): Promise<void>
-  licence(): Promise<{ licensed: boolean; customerName?: string }>
+  licence(): Promise<{ licensed: boolean; customerName?: string; key?: string }>
   activate(key: string): Promise<{ ok: true; customerName: string } | { ok: false; message: string }>
   deactivate(): Promise<{ ok: boolean; message?: string }>
-  openBuyPage(): Promise<void>
+  buy(): Promise<{ ok: true; customerName: string } | { ok: false; cancelled: true } | { ok: false; message: string }>
   showFolder(path: string): Promise<void>
   pathForFile(file: File): string
 }
@@ -39,7 +39,7 @@ export interface Api {
 /** Invoke-style methods, in the order the preload exposes them. */
 export const INVOKE_METHODS = [
   'chooseFolder', 'sort', 'applyClockFix', 'recordCorrection', 'save', 'getParts', 'setParts',
-  'licence', 'activate', 'deactivate', 'openBuyPage', 'showFolder'
+  'licence', 'activate', 'deactivate', 'buy', 'showFolder'
 ] as const
 
 export type InvokeMethod = (typeof INVOKE_METHODS)[number]

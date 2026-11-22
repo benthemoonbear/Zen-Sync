@@ -22,74 +22,69 @@ export interface LicenceState {
 export interface LicenceDeps {
   fetch: typeof fetch
   instanceName: string
-  productId: number
+  /** Base URL of the Zen Sync licence server (Cloudflare Worker), e.g. https://zen-sync-licences.<account>.workers.dev */
+  serverUrl: string
 }
 
-const API = 'https://api.lemonsqueezy.com/v1/licenses'
+type Result = { ok: true; state: LicenceState } | { ok: false; message: string }
+
 const NETWORK_MESSAGE = "Couldn't reach the licence server. Check your internet connection and try again."
+const NOT_SET_UP = "This copy of the app isn't set up for licences yet. Contact support."
+const STILL_CONFIRMING = 'Your payment is still being confirmed. Check your email for your licence key, or try again in a minute.'
 
-async function post(deps: LicenceDeps, action: string, fields: Record<string, string>): Promise<{ status: number; body: Record<string, any> }> {
-  const res = await deps.fetch(`${API}/${action}`, {
+async function postJson(deps: LicenceDeps, path: string, body: unknown): Promise<Record<string, any>> {
+  const res = await deps.fetch(`${deps.serverUrl.replace(/\/$/, '')}${path}`, {
     method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams(fields).toString()
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(body)
   })
-  let body: Record<string, any> = {}
-  try {
-    body = (await res.json()) as Record<string, any>
-  } catch {
-    body = {}
-  }
-  return { status: res.status, body }
+  return (await res.json()) as Record<string, any>
 }
 
-/** One-time online activation. After this the app never checks again. */
-export async function activate(
-  rawKey: string,
-  deps: LicenceDeps
-): Promise<{ ok: true; state: LicenceState } | { ok: false; message: string }> {
+/** Activates this computer once, online. After this the app never checks again. */
+export async function activate(rawKey: string, deps: LicenceDeps): Promise<Result> {
+  if (!deps.serverUrl) return { ok: false, message: NOT_SET_UP }
   const key = rawKey.trim()
-  if (!deps.productId) return { ok: false, message: "This copy of the app isn't set up for licences yet. Contact support." }
-  let r: Awaited<ReturnType<typeof post>>
+  let r: Record<string, any>
   try {
-    r = await post(deps, 'activate', { license_key: key, instance_name: deps.instanceName })
+    r = await postJson(deps, '/licences/activate', { key, instanceName: deps.instanceName })
   } catch {
     return { ok: false, message: NETWORK_MESSAGE }
   }
-  const { body } = r
-  if (!body.activated) {
-    const err = String(body.error ?? '').toLowerCase()
-    if (err.includes('activation limit')) {
-      return { ok: false, message: 'This key is already in use on 2 computers. Deactivate one in its Settings, or contact support.' }
-    }
-    if (r.status >= 500) return { ok: false, message: NETWORK_MESSAGE }
-    return { ok: false, message: "That key wasn't recognised. Check it and try again." }
-  }
-  if (Number(body.meta?.product_id) !== deps.productId) {
-    if (body.instance?.id) {
-      try {
-        await post(deps, 'deactivate', { license_key: key, instance_id: String(body.instance.id) })
-      } catch {
-        // best effort: the key is still rejected
-      }
-    }
-    return { ok: false, message: 'This key is for a different product.' }
-  }
+  if (!r.ok) return { ok: false, message: String(r.message ?? "That key wasn't recognised. Check it and try again.") }
   return {
     ok: true,
-    state: {
-      key,
-      instanceId: String(body.instance?.id ?? ''),
-      customerName: String(body.meta?.customer_name ?? ''),
-      activatedAt: new Date().toISOString()
-    }
+    state: { key: String(r.key ?? key), instanceId: String(r.instanceId), customerName: String(r.customerName ?? ''), activatedAt: new Date().toISOString() }
   }
 }
 
+/** After an in-app checkout: wait for Stripe's confirmation to reach the server, then activate this computer. */
+export async function claimPurchase(
+  sessionId: string,
+  deps: LicenceDeps,
+  opts: { attempts?: number; intervalMs?: number } = {}
+): Promise<Result> {
+  if (!deps.serverUrl) return { ok: false, message: NOT_SET_UP }
+  const attempts = opts.attempts ?? 30
+  const interval = opts.intervalMs ?? 2000
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await deps.fetch(`${deps.serverUrl.replace(/\/$/, '')}/claim?session_id=${encodeURIComponent(sessionId)}`)
+      const r = (await res.json()) as Record<string, any>
+      if (r.ready && r.key) return activate(String(r.key), deps)
+    } catch {
+      // network blip: keep trying
+    }
+    if (i < attempts - 1) await new Promise((res) => setTimeout(res, interval))
+  }
+  return { ok: false, message: STILL_CONFIRMING }
+}
+
 export async function deactivate(state: LicenceState, deps: LicenceDeps): Promise<{ ok: boolean; message?: string }> {
+  if (!deps.serverUrl) return { ok: false, message: NOT_SET_UP }
   try {
-    const { body } = await post(deps, 'deactivate', { license_key: state.key, instance_id: state.instanceId })
-    return body.deactivated ? { ok: true } : { ok: false, message: "Couldn't deactivate this computer. Try again, or contact support." }
+    const r = await postJson(deps, '/licences/deactivate', { key: state.key, instanceId: state.instanceId })
+    return r.ok ? { ok: true } : { ok: false, message: "Couldn't deactivate this computer. Try again, or contact support." }
   } catch {
     return { ok: false, message: NETWORK_MESSAGE }
   }

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { App } from '../../src/renderer/App'
 import { appStore } from '../../src/renderer/state/store'
 import { mockApi, sampleResult } from './helpers'
@@ -67,11 +67,28 @@ describe('SaveDialog', () => {
 })
 
 describe('UnlockDialog', () => {
-  test('Buy opens the store; a pasted key activates', async () => {
+  test('Buy for £14.99 runs the in-app checkout and unlocks with no key to type', async () => {
     const { api } = await openSave({}, small())
     fireEvent.click(screen.getByRole('radio', { name: /Folder per part/ }))
     fireEvent.click(await screen.findByRole('button', { name: 'Buy for £14.99' }))
-    expect(api.openBuyPage).toHaveBeenCalled()
+    expect(api.buy).toHaveBeenCalled()
+    expect(await screen.findByText('Licensed to Jane Smith')).toBeTruthy()
+  })
+
+  test('while checkout is open the panel says so; closing it returns to the offer', async () => {
+    let finish!: (v: Awaited<ReturnType<Api['buy']>>) => void
+    await openSave({ buy: () => new Promise((r) => (finish = r)) }, small())
+    fireEvent.click(screen.getByRole('radio', { name: /Folder per part/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Buy for £14.99' }))
+    expect(await screen.findByText('Complete your purchase in the checkout window…')).toBeTruthy()
+    await act(async () => finish({ ok: false, cancelled: true }))
+    expect(await screen.findByRole('button', { name: 'Buy for £14.99' })).toBeTruthy()
+  })
+
+  test('a pasted key still activates (second computer)', async () => {
+    const { api } = await openSave({}, small())
+    fireEvent.click(screen.getByRole('radio', { name: /Folder per part/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'I already bought it' }))
     fireEvent.change(screen.getByLabelText('Licence key'), { target: { value: 'KEY-1' } })
     fireEvent.click(screen.getByRole('button', { name: 'Activate' }))
     expect(await screen.findByText('Licensed to Jane Smith')).toBeTruthy()
@@ -81,6 +98,7 @@ describe('UnlockDialog', () => {
   test('shows activation errors inline', async () => {
     await openSave({ activate: async () => ({ ok: false as const, message: "That key wasn't recognised. Check it and try again." }) }, small())
     fireEvent.click(screen.getByRole('radio', { name: /Folder per part/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'I already bought it' }))
     fireEvent.change(await screen.findByLabelText('Licence key'), { target: { value: 'nope' } })
     fireEvent.click(screen.getByRole('button', { name: 'Activate' }))
     expect(await screen.findByText("That key wasn't recognised. Check it and try again.")).toBeTruthy()
@@ -112,9 +130,10 @@ describe('SettingsDialog', () => {
     expect(saved.map((p) => p.name)).toEqual(['Details', 'Prep', 'Arrival', 'Ceremony', 'Confetti', 'Sparklers'])
   })
 
-  test('licence section shows the owner and deactivates', async () => {
-    const { api } = await openSettings({ licence: async () => ({ licensed: true, customerName: 'Jane Smith' }) })
+  test('licence section shows the owner, the key for a second computer, and deactivates', async () => {
+    const { api } = await openSettings({ licence: async () => ({ licensed: true, customerName: 'Jane Smith', key: 'ZS-AAAA-BBBB-CCCC-DDDD' }) })
     expect(await screen.findByText('Licensed to Jane Smith')).toBeTruthy()
+    expect(screen.getByText('ZS-AAAA-BBBB-CCCC-DDDD')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Deactivate this computer' }))
     await waitFor(() => expect(api.deactivate).toHaveBeenCalled())
   })

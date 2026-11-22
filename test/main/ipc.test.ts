@@ -18,8 +18,9 @@ async function setup(n = 3) {
     showItemInFolder: () => {},
     fetch: globalThis.fetch,
     instanceName: 'test',
-    productId: 1,
-    buyUrl: 'https://example.com/buy',
+    serverUrl: '',
+    checkoutUrl: '',
+    openCheckout: async () => null,
     emit: (c, p) => events.push([c, p])
   })
   return { h, dir, userData, events }
@@ -91,8 +92,60 @@ test('a failed model download is reported as such and can be retried', async () 
       return new FakeEmbedder({})
     },
     chooseFolder: async () => dir, openExternal: async () => {}, showItemInFolder: () => {},
-    fetch: globalThis.fetch, instanceName: 't', productId: 1, buyUrl: '', emit: () => {}
+    fetch: globalThis.fetch, instanceName: 't', serverUrl: '', checkoutUrl: '', openCheckout: async () => null, emit: () => {}
   })
   await expect(h.sort(dir)).rejects.toThrow('MODEL_DOWNLOAD_FAILED')
   expect((await h.sort(dir)).photos).toHaveLength(1)
+})
+
+
+describe('buying inside the app', () => {
+  async function buySetup(openCheckout: (url: string, successPrefix: string) => Promise<string | null>) {
+    const userData = await tempDir('userdata')
+    const calls: string[] = []
+    const fetch = (async (url: string) => {
+      calls.push(url)
+      if (url.includes('/claim')) return new Response(JSON.stringify({ ready: true, key: 'ZS-AAAA-BBBB-CCCC-DDDD', customerName: 'Jane Smith' }))
+      return new Response(JSON.stringify({ ok: true, key: 'ZS-AAAA-BBBB-CCCC-DDDD', instanceId: 'inst-1', customerName: 'Jane Smith' }))
+    }) as never
+    const opened: [string, string][] = []
+    const h = createHandlers({
+      userData,
+      createEmbedder: async () => new FakeEmbedder({}),
+      chooseFolder: async () => null, openExternal: async () => {}, showItemInFolder: () => {},
+      fetch, instanceName: 'Ben PC',
+      serverUrl: 'https://licences.example',
+      checkoutUrl: 'https://buy.stripe.com/test_abc',
+      openCheckout: async (url, prefix) => {
+        opened.push([url, prefix])
+        return openCheckout(url, prefix)
+      },
+      emit: () => {}
+    })
+    return { h, calls, opened }
+  }
+
+  test('a completed checkout unlocks the app with no key to type', async () => {
+    const { h, opened } = await buySetup(async () => 'cs_test_42')
+    expect(await h.buy()).toEqual({ ok: true, customerName: 'Jane Smith' })
+    expect(opened[0]).toEqual(['https://buy.stripe.com/test_abc', 'https://licences.example/success'])
+    expect(await h.licence()).toEqual({ licensed: true, customerName: 'Jane Smith', key: 'ZS-AAAA-BBBB-CCCC-DDDD' })
+  })
+
+  test('closing the checkout window leaves the app as it was', async () => {
+    const { h, calls } = await buySetup(async () => null)
+    expect(await h.buy()).toEqual({ ok: false, cancelled: true })
+    expect(calls).toEqual([])
+    expect(await h.licence()).toEqual({ licensed: false })
+  })
+
+  test('a build without payments set up says so', async () => {
+    const userData = await tempDir('userdata')
+    const h = createHandlers({
+      userData, createEmbedder: async () => new FakeEmbedder({}), chooseFolder: async () => null,
+      openExternal: async () => {}, showItemInFolder: () => {}, fetch: globalThis.fetch, instanceName: 'x',
+      serverUrl: '', checkoutUrl: '', openCheckout: async () => 'cs_test_1', emit: () => {}
+    })
+    expect(await h.buy()).toEqual({ ok: false, message: "This copy of the app isn't set up for purchases yet. Contact support." })
+  })
 })

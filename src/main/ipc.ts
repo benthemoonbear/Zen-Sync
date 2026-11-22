@@ -1,7 +1,7 @@
 import { join, resolve } from 'node:path'
 import { addCorrection, type CorrectionSet } from './core/corrections'
 import type { Embedder } from './core/embed'
-import { activate, canSave, deactivate, isLicensed, type LicenceState } from './core/licence'
+import { activate, canSave, claimPurchase, deactivate, isLicensed, type LicenceState } from './core/licence'
 import { DEFAULT_PARTS, loadParts, saveParts } from './core/parts'
 import { applyClockFix, runSort, type SortSession } from './core/pipeline'
 import { OUTPUT_FOLDER, planOutput, writeCopies } from './core/save'
@@ -17,8 +17,12 @@ export interface HandlerDeps {
   showItemInFolder(path: string): void
   fetch: typeof fetch
   instanceName: string
-  productId: number
-  buyUrl: string
+  /** Licence server (Cloudflare Worker) base URL */
+  serverUrl: string
+  /** Stripe Payment Link URL */
+  checkoutUrl: string
+  /** Opens the checkout in an app window; resolves with the Checkout Session id once Stripe redirects to successPrefix, or null if closed. */
+  openCheckout(url: string, successPrefix: string): Promise<string | null>
   emit(channel: string, payload: unknown): void
 }
 
@@ -95,9 +99,22 @@ export function createHandlers(deps: HandlerDeps) {
       saveParts(partsStore, parts.length ? parts : DEFAULT_PARTS)
     },
 
-    async licence(): Promise<{ licensed: boolean; customerName?: string }> {
+    async licence(): Promise<{ licensed: boolean; customerName?: string; key?: string }> {
       const s = licenceStore.get()
-      return isLicensed(s) ? { licensed: true, customerName: s!.customerName } : { licensed: false }
+      return isLicensed(s) ? { licensed: true, customerName: s!.customerName, key: s!.key } : { licensed: false }
+    },
+
+    /** In-app purchase: Stripe checkout in an app window, then the licence arrives automatically. */
+    async buy(): Promise<{ ok: true; customerName: string } | { ok: false; cancelled: true } | { ok: false; message: string }> {
+      if (!deps.checkoutUrl || !deps.serverUrl) {
+        return { ok: false, message: "This copy of the app isn't set up for purchases yet. Contact support." }
+      }
+      const sessionId = await deps.openCheckout(deps.checkoutUrl, `${deps.serverUrl.replace(/\/$/, '')}/success`)
+      if (!sessionId) return { ok: false, cancelled: true }
+      const r = await claimPurchase(sessionId, deps)
+      if (!r.ok) return r
+      licenceStore.set(r.state)
+      return { ok: true, customerName: r.state.customerName }
     },
 
     async activate(key: string) {
@@ -115,7 +132,6 @@ export function createHandlers(deps: HandlerDeps) {
       return r
     },
 
-    openBuyPage: () => deps.openExternal(deps.buyUrl),
 
     async showFolder(path: string): Promise<void> {
       deps.showItemInFolder(path)

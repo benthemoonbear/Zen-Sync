@@ -1,0 +1,14 @@
+name = "zen-sync-licences"
+main = "src/index.ts"
+compatibility_date = "2026-11-01"
+workers_dev = true
+
+[vars]
+APP_NAME = "Zen Sync"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "zen-sync-licences"
+database_id = "8e23c007-73e6-45e4-b857-d4f916ff71d5"
+
+# Secret (set by the deploy workflow, never committed): STRIPE_WEBHOOK_SECRET

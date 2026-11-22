@@ -33,6 +33,47 @@ function createWindow(): void {
   else win.loadFile(join(__dirname, '../renderer/index.html'))
 }
 
+/**
+ * Stripe checkout in its own window. Resolves with the Checkout Session id when Stripe redirects to the
+ * licence server's success page (…/success?session_id=cs_…), or null if the customer closes the window.
+ * The window uses a throwaway session and no preload, so the checkout page can't reach the app.
+ */
+function openCheckout(url: string, successPrefix: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const checkout = new BrowserWindow({
+      parent: win ?? undefined,
+      modal: true,
+      width: 520,
+      height: 760,
+      title: 'Zen Sync — checkout',
+      backgroundColor: '#ffffff',
+      autoHideMenuBar: true,
+      webPreferences: { partition: 'checkout', sandbox: true, contextIsolation: true }
+    })
+    let done = false
+    const finish = (id: string | null) => {
+      if (done) return
+      done = true
+      resolve(id)
+      if (id) setTimeout(() => !checkout.isDestroyed() && checkout.close(), 3500)
+    }
+    const watch = (_e: unknown, target: string) => {
+      if (!target.startsWith(successPrefix)) return
+      const id = new URL(target).searchParams.get('session_id')
+      if (id) finish(id)
+    }
+    checkout.webContents.on('will-redirect', watch)
+    checkout.webContents.on('will-navigate', watch)
+    checkout.webContents.on('did-navigate', watch)
+    checkout.webContents.setWindowOpenHandler(({ url: link }) => {
+      if (/^https:\/\//.test(link)) void shell.openExternal(link)
+      return { action: 'deny' }
+    })
+    checkout.on('closed', () => finish(null))
+    void checkout.loadURL(url)
+  })
+}
+
 function register(handlers: Handlers): void {
   for (const m of INVOKE_METHODS) {
     ipcMain.handle(`api:${m}`, (_e, ...args: unknown[]) => (handlers[m] as (...a: unknown[]) => unknown)(...args))
@@ -62,8 +103,9 @@ app.whenReady().then(() => {
     showItemInFolder: (path) => shell.showItemInFolder(path),
     fetch: (input, init) => net.fetch(input as string, init),
     instanceName: hostname(),
-    productId: Number(import.meta.env.MAIN_VITE_LS_PRODUCT_ID ?? 0),
-    buyUrl: String(import.meta.env.MAIN_VITE_LS_CHECKOUT_URL ?? 'https://zenvisuals.co.uk'),
+    serverUrl: String(import.meta.env.MAIN_VITE_LICENCE_SERVER_URL ?? ''),
+    checkoutUrl: String(import.meta.env.MAIN_VITE_CHECKOUT_URL ?? ''),
+    openCheckout,
     emit: (channel, payload) => win?.webContents.send(channel, payload)
   })
   register(handlers)
