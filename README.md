@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/review.png" alt="Zen Sync's review screen: a timeline of the wedding day across the top, a large preview on the left, and numbered thumbnails grouped by part of the day" width="900">
+  <img src="docs/images/review.png" alt="Zen Sync's review screen for Robyn and Gabriel's wedding: a timeline of the day across the top, a large preview of the couple on the left, and numbered thumbnails grouped by part of the day" width="900">
 </p>
 
 ---
@@ -48,7 +48,7 @@ It works on finished JPEG exports, not RAW files, so it fits in after your edit 
 ## How it works
 
 <p align="center">
-  <img src="docs/images/sorting.png" alt="The ensō logo filling with gold while Zen Sync analyses 64 of 124 photos" width="620">
+  <img src="docs/images/sorting.png" alt="The ensō logo filling with gold while Zen Sync analyses the photos" width="440">
 </p>
 
 1. **Drop in a folder** of finished JPEGs from the wedding.
@@ -136,6 +136,6 @@ Zen Sync is in its **first version (0.1)**, built by [Zen Visuals](https://zenvi
 For developers: building, testing and releasing are covered in <a href="docs/DEVELOPING.md">docs/DEVELOPING.md</a>.
 Photo recognition uses Google's <a href="https://huggingface.co/google/siglip-base-patch16-224">SigLIP</a> model (Apache 2.0), run locally with <a href="https://github.com/huggingface/transformers.js">Transformers.js</a>.
 The wordmark is set in <a href="https://rsms.me/inter/">Inter</a> (SIL Open Font Licence).
-Screenshots use placeholder images.
+Screenshots show Robyn &amp; Gabriel's wedding, photographed by Zen Visuals.
 © 2026 Zen Visuals. All rights reserved.
 </sub>

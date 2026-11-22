@@ -1,4 +1,6 @@
 export * from '../../src/shared/api'
 export function thumbUrl(path: string, _width: number): string {
-  return `/${(globalThis as any).location?.search.includes('demo') ? 'thumbs-demo' : 'thumbs'}/${path.split('/').pop()}`
+  const q = (globalThis as any).location?.search ?? ''
+  const dir = q.includes('robyn') ? 'thumbs-robyn' : q.includes('demo') ? 'thumbs-demo' : 'thumbs'
+  return `/${dir}/${path.split('/').pop()}`
 }
