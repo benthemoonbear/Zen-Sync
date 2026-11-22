@@ -109,3 +109,11 @@ describe('review screen', () => {
     expect(screen.getByText(/a\.jpg/)).toBeTruthy()
   })
 })
+
+test('a failed model download shows a connection message', async () => {
+  appStore().getState().reset()
+  mockApi({ sort: async () => { throw new Error("Error invoking remote method 'api:sort': Error: MODEL_DOWNLOAD_FAILED") } })
+  render(<App />)
+  fireEvent.click(screen.getByRole('button', { name: 'Choose folder' }))
+  expect(await screen.findByText("Couldn't download the photo model. Check your internet connection and try again — it's only needed once.")).toBeTruthy()
+})

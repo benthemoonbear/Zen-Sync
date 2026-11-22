@@ -1,0 +1,54 @@
+publish: null
+npmRebuild: false
+appId: uk.co.zenvisuals.weddingsorter
+productName: Wedding Photo Sorter
+copyright: Copyright © 2026 Zen Visuals
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**
+  - package.json
+asarUnpack:
+  - node_modules/sharp/**
+  - node_modules/@img/**
+  - node_modules/onnxruntime-node/**
+win:
+  target: nsis
+  icon: build/icon.png
+  signAndEditExecutable: false
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: Wedding Photo Sorter
+  artifactName: Wedding-Photo-Sorter-Setup-${version}.${ext}
+linux:
+  target: [AppImage, flatpak]
+  category: Graphics
+  icon: build/icon.png
+  syncDesktopName: true
+  synopsis: Sort wedding photos into wedding-day order
+  artifactName: Wedding-Photo-Sorter-${version}.${ext}
+flatpak:
+  runtime: org.freedesktop.Platform
+  runtimeVersion: '24.08'
+  sdk: org.freedesktop.Sdk
+  base: org.electronjs.Electron2.BaseApp
+  baseVersion: '24.08'
+  finishArgs:
+    - --share=ipc
+    - --share=network
+    - --socket=x11
+    - --socket=wayland
+    - --device=dri
+    - --filesystem=home
+    - --filesystem=xdg-pictures
+mac:
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+  category: public.app-category.photography
+  icon: build/icon.png

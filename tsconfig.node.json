@@ -3,5 +3,5 @@
     "target": "ES2022", "module": "ESNext", "moduleResolution": "Bundler", "strict": true,
     "esModuleInterop": true, "skipLibCheck": true, "types": ["node"], "noEmit": true, "composite": false
   },
-  "include": ["electron.vite.config.ts", "vitest.config.mts", "src/main/**/*", "src/preload/**/*", "src/shared/**/*", "scripts/**/*", "test/core/**/*", "test/main/**/*", "test/fakes/**/*", "test/*.ts"]
+  "include": ["electron.vite.config.ts", "vitest.config.mts", "src/main/**/*", "src/preload/**/*", "src/shared/**/*", "scripts/*.mts", "test/core/**/*", "test/main/**/*", "test/fakes/**/*", "test/*.ts"]
 }

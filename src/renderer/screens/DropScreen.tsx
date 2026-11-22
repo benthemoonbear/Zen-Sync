@@ -39,8 +39,12 @@ export function DropScreen() {
         return
       }
       appStore().getState().load(dir, result)
-    } catch {
-      setError("Couldn't sort that folder. Check it contains finished JPEGs and try again.")
+    } catch (e) {
+      setError(
+        String((e as Error)?.message ?? '').includes('MODEL_DOWNLOAD_FAILED')
+          ? "Couldn't download the photo model. Check your internet connection and try again — it's only needed once."
+          : "Couldn't sort that folder. Check it contains finished JPEGs and try again."
+      )
     } finally {
       setBusy(false)
     }

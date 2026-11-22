@@ -42,8 +42,15 @@ export function createHandlers(deps: HandlerDeps) {
     chooseFolder: () => deps.chooseFolder(),
 
     async sort(dir: string): Promise<SortResult> {
+      let model: Embedder
+      try {
+        model = await getEmbedder()
+      } catch (e) {
+        console.error('Model load failed:', e)
+        throw new Error('MODEL_DOWNLOAD_FAILED')
+      }
       session = await runSort(dir, {
-        embedder: await getEmbedder(),
+        embedder: model,
         parts: loadParts(partsStore),
         corrections: correctionsStore.get(),
         onProgress: (stage, done, total) => deps.emit(EVENTS.progress, { stage, done, total })

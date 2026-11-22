@@ -77,3 +77,22 @@ describe('ipc handlers', () => {
     expect(await h.licence()).toEqual({ licensed: false })
   })
 })
+
+test('a failed model download is reported as such and can be retried', async () => {
+  const userData = await tempDir('userdata')
+  const dir = await tempDir('wedding')
+  await writeJpeg(dir, 'IMG0001.jpg')
+  let calls = 0
+  const h = createHandlers({
+    userData,
+    createEmbedder: async () => {
+      calls++
+      if (calls === 1) throw new TypeError('fetch failed')
+      return new FakeEmbedder({})
+    },
+    chooseFolder: async () => dir, openExternal: async () => {}, showItemInFolder: () => {},
+    fetch: globalThis.fetch, instanceName: 't', productId: 1, buyUrl: '', emit: () => {}
+  })
+  await expect(h.sort(dir)).rejects.toThrow('MODEL_DOWNLOAD_FAILED')
+  expect((await h.sort(dir)).photos).toHaveLength(1)
+})
