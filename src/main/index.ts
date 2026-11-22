@@ -6,6 +6,7 @@ import { createSiglipEmbedder } from './core/embed'
 import { createHandlers, type Handlers } from './ipc'
 import { makeThumb, parseThumbUrl } from './thumbs'
 import { INVOKE_METHODS } from '../shared/api'
+import { PAYMENTS } from './payments-config'
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'thumb', privileges: { standard: true, secure: true, supportFetchAPI: true } }
@@ -103,8 +104,8 @@ app.whenReady().then(() => {
     showItemInFolder: (path) => shell.showItemInFolder(path),
     fetch: (input, init) => net.fetch(input as string, init),
     instanceName: hostname(),
-    serverUrl: String(import.meta.env.MAIN_VITE_LICENCE_SERVER_URL ?? ''),
-    checkoutUrl: String(import.meta.env.MAIN_VITE_CHECKOUT_URL ?? ''),
+    serverUrl: String(import.meta.env.MAIN_VITE_LICENCE_SERVER_URL || PAYMENTS.licenceServerUrl),
+    checkoutUrl: String(import.meta.env.MAIN_VITE_CHECKOUT_URL || PAYMENTS.checkoutUrl),
     openCheckout,
     emit: (channel, payload) => win?.webContents.send(channel, payload)
   })
