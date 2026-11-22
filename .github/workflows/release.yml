@@ -4,6 +4,8 @@ on:
   workflow_dispatch:
   push:
     tags: ['v*']
+    branches: [main]
+    paths: ['package.json', '.github/workflows/release.yml']
 
 env:
   MAIN_VITE_LICENCE_SERVER_URL: ${{ vars.LICENCE_SERVER_URL }}
@@ -48,24 +50,36 @@ jobs:
             dist/*.flatpak
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
     needs: [windows, linux]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+      - name: Work out the version tag
+        id: ver
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v$(node -p "require('./package.json').version")"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" >/dev/null 2>&1; then echo "exists=true" >> "$GITHUB_OUTPUT"; else echo "exists=false" >> "$GITHUB_OUTPUT"; fi
+      - if: steps.ver.outputs.exists == 'false'
+        uses: actions/download-artifact@v4
         with:
           path: out
           merge-multiple: true
-      - uses: softprops/action-gh-release@v2
+      - if: steps.ver.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
         with:
-          name: Zen Sync ${{ github.ref_name }}
+          tag_name: ${{ steps.ver.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Zen Sync ${{ steps.ver.outputs.tag }}
           generate_release_notes: false
           prerelease: true
           files: out/*
           body: |
-            **Zen Sync ${{ github.ref_name }}**
+            **Zen Sync ${{ steps.ver.outputs.tag }}**
 
             - Buy the full version (£14.99) right inside the app — checkout by Stripe, and it unlocks itself when you've paid.
             - Already bought? Settings → **Unlock** → **I already bought it**, and enter your key. One key works on two computers.
