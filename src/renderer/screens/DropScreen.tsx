@@ -1,6 +1,7 @@
 import { useEffect, useState, type DragEvent } from 'react'
 import type { Progress } from '../../shared/api'
 import { appStore } from '../state/store'
+import { EnsoLoader, EnsoLogo } from '../components/Enso'
 
 function progressText(p: Progress | null): string {
   if (!p) return 'Getting ready…'
@@ -68,7 +69,7 @@ export function DropScreen() {
   }
 
   const downloading = download !== null && download < 100
-  const pct = downloading ? download! : progress?.stage === 'analyse' && progress.total ? (progress.done / progress.total) * 100 : progress?.stage === 'arrange' ? 100 : 4
+  const pct = downloading ? download! : progress?.stage === 'analyse' && progress.total ? (progress.done / progress.total) * 100 : progress?.stage === 'arrange' ? 100 : 0
 
   return (
     <div className="drop">
@@ -84,14 +85,13 @@ export function DropScreen() {
       >
         {busy ? (
           <>
+            <EnsoLoader progress={Math.max(0, Math.min(100, pct)) / 100} complete={!downloading && progress?.stage === 'arrange'} />
             <h1>{downloading ? `Downloading the photo model (one time only) — ${download}%` : progressText(progress)}</h1>
-            <div className="progress">
-              <div style={{ width: `${Math.max(4, Math.min(100, pct))}%` }} />
-            </div>
             <p>Your photos never leave this computer.</p>
           </>
         ) : (
           <>
+            <EnsoLogo />
             <h1>Drag a folder of finished JPEGs here</h1>
             <p>or</p>
             <button className="primary" onClick={choose}>

@@ -4,10 +4,20 @@ import { DEFAULT_PARTS } from '../../src/main/core/parts'
 import data from './public/data.json'
 
 const result = { ...data, parts: DEFAULT_PARTS }
+let progressCb: any
 ;(window as any).api = {
   chooseFolder: async () => '/home/ben/Pictures/bakewell wedding',
-  sort: async () => result,
-  onProgress: () => () => {},
+  sort: () =>
+    new Promise((resolve) => {
+      if (!location.search.includes('slow')) return resolve(result)
+      let done = 0
+      const t = setInterval(() => {
+        done += 4
+        progressCb?.({ stage: done < 124 ? 'analyse' : 'arrange', done: Math.min(done, 124), total: 124 })
+        if (done > 140) { clearInterval(t); resolve(result) }
+      }, 120)
+    }),
+  onProgress: (cb: any) => ((progressCb = cb), () => {}),
   onModelDownload: () => () => {},
   applyClockFix: async () => ({ ...result, clock: [] }),
   recordCorrection: async () => {},
