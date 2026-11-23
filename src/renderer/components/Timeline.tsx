@@ -1,6 +1,6 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 import { sectionSizes } from '../state/order'
-import { partColour, timeOfDay } from '../format'
+import { partColour, textOn, timeOfDay } from '../format'
 import { useApp } from '../state/store'
 
 function Gap({ after }: { after: string }) {
@@ -22,11 +22,11 @@ function Section({ partId, count, name, colour, onJump }: { partId: string; coun
       data-testid="timeline-section"
       data-part={partId}
       className={`tl-section${drop.isOver ? ' drop-target' : ''}`}
-      style={{ flexGrow: count, flexBasis: 0, background: colour, opacity: drag.isDragging ? 0.4 : 1 }}
-      title={`${name} · ${count} photos`}
+      style={{ flexGrow: count, flexBasis: 0, background: colour, color: textOn(colour), opacity: drag.isDragging ? 0.4 : 1 }}
+      title={`${name}: ${count} photos`}
       onClick={onJump}
     >
-      {name}
+      <span className="label">{name}</span>
       <span className="count">{count}</span>
     </div>
   )
@@ -51,7 +51,7 @@ export function Timeline() {
           const index = parts.findIndex((p) => p.id === partId)
           return (
             <div key={partId} style={{ display: 'contents' }}>
-              <Section partId={partId} count={count} name={parts[index]?.name ?? partId} colour={partColour(index)} onJump={() => jump(partId)} />
+              <Section partId={partId} count={count} name={parts[index]?.name ?? partId} colour={partColour(index, parts.length)} onJump={() => jump(partId)} />
               <Gap after={partId} />
             </div>
           )
@@ -59,7 +59,7 @@ export function Timeline() {
       </div>
       <div className="timeline-times">
         <span>{times.length ? timeOfDay(Math.min(...times)) : ''}</span>
-        <span className="hint">Drag a section to move it · drop photos on a section to move them · drop between sections to start a new part</span>
+        <span className="hint">Drag sections to reorder. Drop photos on a section to move them, or between sections to start a new part.</span>
         <span>{times.length ? timeOfDay(Math.max(...times)) : ''}</span>
       </div>
     </div>

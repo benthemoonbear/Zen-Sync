@@ -24,13 +24,14 @@ function Tile({ photo, n, colour, cam, selected }: { photo: SortedPhoto; n: numb
       {...drag.listeners}
       {...drag.attributes}
       data-testid="tile"
-      className={`tile${photo.unsure ? ' unsure' : ''}${selected ? ' selected' : ''}${drag.isDragging ? ' dragging' : ''}`}
-      style={{ borderBottomColor: colour, boxShadow: drop.isOver ? 'inset 3px 0 0 var(--text)' : undefined }}
+      className={`tile${photo.unsure ? ' unsure' : ''}${selected ? ' selected' : ''}${drag.isDragging ? ' dragging' : ''}${drop.isOver ? ' drop-before' : ''}`}
+      style={{ ['--part' as string]: colour }}
       onClick={onClick}
       title={photo.name}
     >
       <img src={thumbUrl(photo.path, THUMB_SMALL)} alt="" loading="lazy" draggable={false} />
-      <span className="n">{photo.unsure ? `${n}?` : n}</span>
+      <span className="n">{n}</span>
+      {photo.unsure && <span className="q" title="Not sure about this one">?</span>}
       <span className="cam">{cam}</span>
     </div>
   )
@@ -51,12 +52,13 @@ export function Strip() {
         const inPart = photos.filter((p) => p.partId === partId)
         if (!inPart.length) return null
         const index = parts.findIndex((p) => p.id === partId)
-        const colour = partColour(index)
+        const colour = partColour(index, parts.length)
         return (
           <div className="strip-section" key={partId} id={`section-${partId}`}>
             <div className="strip-heading">
               <i style={{ background: colour }} />
-              {parts[index]?.name ?? partId} · {inPart.length}
+              {parts[index]?.name ?? partId}
+              <span className="count">{inPart.length}</span>
             </div>
             <div className="tiles">
               {inPart.map((p) => (

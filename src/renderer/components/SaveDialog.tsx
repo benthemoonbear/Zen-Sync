@@ -56,16 +56,16 @@ export function SaveDialog({ onClose }: { onClose: () => void }) {
               <p>Copies go into a new folder called “numbered” inside this one. Your originals aren't changed.</p>
               <label className={`choice${mode === 'single' ? ' on' : ''}`}>
                 <input type="radio" name="mode" checked={mode === 'single'} onChange={() => pick('single')} />
-                <span>
+                <span className="label">
                   One folder<div className="sub">1.jpg to {photos.length}.jpg through the day</div>
                 </span>
               </label>
               <label className={`choice${mode === 'perPart' ? ' on' : ''}`}>
                 <input type="radio" name="mode" checked={mode === 'perPart'} onChange={() => pick('perPart')} />
-                <span>
-                  Folder per part<div className="sub">01 Getting ready, 02 Details… numbering runs on</div>
+                <span className="label">
+                  Folder per part<div className="sub">Folders and sub-folders for each part, numbering runs on</div>
                 </span>
-                {!licensed && <span className="lock">Full version · £14.99</span>}
+                {!licensed && <span className="lock">Full version, £14.99</span>}
               </label>
               {!licensed && photos.length > FREE_PHOTO_LIMIT && <p className="hint">The free version saves up to 250 photos. This wedding has {photos.length}.</p>}
               <div className="actions">

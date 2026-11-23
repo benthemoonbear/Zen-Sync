@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { ClockBanner } from '../components/ClockBanner'
+import { EnsoLogo } from '../components/Enso'
 import { Preview } from '../components/Preview'
 import { Strip } from '../components/Strip'
 import { Timeline } from '../components/Timeline'
@@ -66,24 +67,35 @@ export function ReviewScreen({ onSave, onSettings, dialogOpen = false }: { onSav
   }
 
   const skipped = result?.skipped ?? []
+  const unsureCount = photos.filter((p) => p.unsure).length
+  const cameraCount = result?.cameras.length ?? 0
   return (
     <div className="app">
       <div className="header">
+        <span className="brand"><EnsoLogo size={24} small /></span>
         <div className="title">
-          {folderName(dir ?? '')} · {photos.length} photos · {result?.cameras.length ?? 0} cameras
+          <h1 style={{ margin: 0, font: 'inherit' }}><strong>{folderName(dir ?? '')}</strong></h1>
+          <span className="stats">
+            {photos.length} photos, {cameraCount} {cameraCount === 1 ? 'camera' : 'cameras'}
+          </span>
         </div>
         {skipped.length > 0 && (
           <button className="ghost" onClick={() => setShowSkipped(!showSkipped)}>
             {skipped.length === 1 ? "1 file couldn't be read" : `${skipped.length} files couldn't be read`}
           </button>
         )}
-        <button onClick={() => appStore().getState().goNextUnsure()}>Next unsure</button>
+        {unsureCount > 0 && (
+          <button onClick={() => appStore().getState().goNextUnsure()} aria-label={`Next unsure, ${unsureCount} left`}>
+            Next unsure<span className="badge">{unsureCount}</span>
+          </button>
+        )}
         <button className="ghost" onClick={onSettings}>Settings</button>
         <button className="ghost" onClick={() => appStore().getState().reset()}>Start over</button>
+        <span className="divider" />
         <button className="primary" onClick={onSave}>Save copies</button>
       </div>
       {showSkipped && (
-        <div className="banner">
+        <div className="banner notice">
           <span>{skipped.map((s) => `${s.name} — ${s.reason}`).join(' · ')}</span>
         </div>
       )}

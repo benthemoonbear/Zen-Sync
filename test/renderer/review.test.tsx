@@ -56,7 +56,15 @@ describe('drop screen', () => {
 describe('review screen', () => {
   test('header shows folder name, photo and camera counts', async () => {
     await openReview()
-    expect(screen.getByText('bakewell wedding · 124 photos · 2 cameras')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'bakewell wedding' })).toBeTruthy()
+    expect(screen.getByText('124 photos, 2 cameras')).toBeTruthy()
+  })
+
+  test('"Next unsure" shows how many photos are unsure', async () => {
+    await openReview()
+    const unsure = document.querySelectorAll('.tile.unsure').length
+    expect(unsure).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: `Next unsure, ${unsure} left` })).toBeTruthy()
   })
 
   test('clock banner offers Fix and Ignore', async () => {

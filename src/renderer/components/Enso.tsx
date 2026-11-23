@@ -5,9 +5,9 @@ const GOLD = '#F3E3C3'
 const GOLD_DEEP = '#E9C98E'
 const DOT_LIGHT = '#FFF4DE'
 
-export function EnsoLogo({ size = 96 }: { size?: number }) {
+export function EnsoLogo({ size = 96, small = false }: { size?: number; small?: boolean }) {
   return (
-    <svg data-testid="enso-logo" role="img" aria-label="Zen Sync" width={size} height={size} viewBox="0 0 256 256" className="enso-glow">
+    <svg data-testid={small ? 'enso-mark' : 'enso-logo'} role="img" aria-label="Zen Sync" width={size} height={size} viewBox="0 0 256 256" className={small ? 'enso-small' : 'enso-glow'}>
       <path d={BAND} fill={GOLD} />
       <circle cx={DOT.cx} cy={DOT.cy} r={DOT.r} fill={DOT_LIGHT} />
     </svg>

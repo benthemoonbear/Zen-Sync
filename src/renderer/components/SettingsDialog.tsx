@@ -4,6 +4,7 @@ import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities'
 import type { Part } from '../../main/core/types'
 import { UnlockPanel } from './UnlockDialog'
+import { partColour } from '../format'
 import { EventPicker } from './EventPicker'
 
 function Row({ part, i, total, onChange, onGroup, onMove, onRemove }: {
@@ -14,6 +15,7 @@ function Row({ part, i, total, onChange, onGroup, onMove, onRemove }: {
   return (
     <div ref={s.setNodeRef} className="list-row" style={{ transform: CSS.Transform.toString(s.transform), transition: s.transition }}>
       <span className="grip" {...s.listeners} {...s.attributes} aria-label={`Drag ${part.name}`}>⋮⋮</span>
+      <span className="swatch" style={{ background: partColour(i, total) }} aria-hidden="true" />
       <input type="text" aria-label={`Part ${i + 1} name`} value={part.name} onChange={(e) => onChange(e.target.value)} />
       <input type="text" className="group-input" aria-label={`Folder for ${part.name || `part ${i + 1}`}`} placeholder="Folder (optional)"
         value={part.group ?? ''} onChange={(e) => onGroup(e.target.value)} />
@@ -111,7 +113,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span className="hint" style={{ flex: 1 }}>Free version · saves up to 250 photos in one folder</span>
+              <span className="hint" style={{ flex: 1 }}>Free version: saves up to 250 photos in one folder</span>
               <button onClick={() => setUnlocking(true)}>Unlock</button>
             </div>
           )}
