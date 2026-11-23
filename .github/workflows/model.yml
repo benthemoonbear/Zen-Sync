@@ -1,0 +1,63 @@
+name: Convert photo model
+
+# Converts Google's SigLIP 2 for Zen Sync, checks it, and publishes it as the
+# "model-siglip2-base-1" release that the app downloads from.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, siglip2]
+    paths: ['model/**', '.github/workflows/model.yml']
+
+jobs:
+  convert:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      TAG: model-siglip2-base-1
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Skip if this model is already published
+        id: check
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then echo "exists=true" >> "$GITHUB_OUTPUT"; else echo "exists=false" >> "$GITHUB_OUTPUT"; fi
+
+      - uses: actions/setup-python@v5
+        if: steps.check.outputs.exists == 'false'
+        with:
+          python-version: '3.12'
+
+      - name: Install converter
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          pip install --index-url https://download.pytorch.org/whl/cpu torch==2.6.0
+          pip install "transformers>=4.51,<5" sentencepiece protobuf onnx==1.17.0 onnxruntime==1.21.0 pillow requests numpy
+
+      - name: Convert and check against PyTorch
+        if: steps.check.outputs.exists == 'false'
+        run: python model/convert_siglip2.py out
+
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.exists == 'false'
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Check it inside Zen Sync's own loader
+        if: steps.check.outputs.exists == 'false'
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+        run: |
+          npm ci
+          npx tsx model/verify_in_app.mts out
+
+      - name: Publish the model release
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          gh release create "$TAG" out/* \
+            --title "Photo model: SigLIP 2 base (for Zen Sync)" \
+            --notes "Google's [SigLIP 2](https://huggingface.co/google/siglip2-base-patch16-224) (Apache 2.0), converted for Zen Sync. The app downloads these files on first use; you don't need them yourself." \
+            --prerelease --latest=false --target "$GITHUB_SHA"

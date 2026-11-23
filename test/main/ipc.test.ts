@@ -58,6 +58,13 @@ describe('ipc handlers', () => {
     expect(saved[0].emb[0]).toBeCloseTo(1 / Math.sqrt(30), 5)
   })
 
+  test('corrections learned with the old photo model are not used with SigLIP 2', async () => {
+    const { h, userData } = await setup(1)
+    const { writeFile } = await import('node:fs/promises')
+    await writeFile(join(userData, 'corrections.json'), JSON.stringify([{ partId: 'cake', emb: [1, 0] }]))
+    expect(h.corrections()).toHaveLength(0)
+  })
+
   test('parts default and persist', async () => {
     const { h } = await setup(1)
     expect((await h.getParts()).map((p) => p.id)).toEqual(DEFAULT_PARTS.map((p) => p.id))

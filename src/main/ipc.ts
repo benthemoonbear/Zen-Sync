@@ -3,6 +3,7 @@ import { addCorrection, type CorrectionSet } from './core/corrections'
 import type { Embedder } from './core/embed'
 import { activate, canSave, claimPurchase, deactivate, isLicensed, type LicenceState } from './core/licence'
 import { DEFAULT_EVENT, EVENT_TYPES, eventById, partsForSort } from './core/events'
+import { MODEL } from './core/embed'
 import { applyClockFix, runSort, type SortSession } from './core/pipeline'
 import { OUTPUT_FOLDER, planOutput, writeCopies } from './core/save'
 import { createStore } from './core/store'
@@ -38,7 +39,8 @@ export function createHandlers(deps: HandlerDeps) {
     return Array.isArray(saved) && saved.length ? saved : ev.parts
   }
   const licenceStore = createStore<LicenceState | null>(join(deps.userData, 'licence.json'), null)
-  const correctionsStore = createStore<CorrectionSet>(join(deps.userData, 'corrections.json'), [])
+  // Corrections hold embeddings, which only mean something to the model that made them.
+  const correctionsStore = createStore<CorrectionSet>(join(deps.userData, `corrections-${MODEL.id}.json`), [])
   let embedder: Promise<Embedder> | undefined
   let session: SortSession | undefined
   let allowed = new Set<string>()
