@@ -7,8 +7,7 @@ checks them against the original PyTorch model, and writes a manifest with SHA-2
 Output (flat, ready to upload as GitHub release assets):
   config.json, preprocessor_config.json, tokenizer.json, tokenizer_config.json, special_tokens_map.json
   vision_model.onnx            photo encoder, fp32
-  vision_model_quantized.onnx  photo encoder, 8-bit (kept for accuracy comparisons)
-  text_model_quantized.onnx    text encoder, 8-bit
+  text_model_quantized.onnx    text encoder: 8-bit word table (256k words, most of its size), the rest fp32
   manifest.json                name, path inside the model folder, size, sha256
   reference.json               PyTorch reference embeddings, used by verify_in_app.mts
 """
@@ -115,9 +114,10 @@ def main(out):
                       dynamic_axes={"input_ids": {0: "batch", 1: "sequence"}, "last_hidden_state": {0: "batch", 1: "sequence"}, "pooler_output": {0: "batch"}},
                       **common)
 
-    # 8-bit versions.
-    quantize_dynamic(os.path.join(out, "vision_model.onnx"), os.path.join(out, "vision_model_quantized.onnx"), weight_type=QuantType.QUInt8)
-    quantize_dynamic(fp32_text, os.path.join(out, "text_model_quantized.onnx"), weight_type=QuantType.QUInt8)
+    # Full 8-bit quantisation drifts badly on SigLIP 2 (first run: photo 0.60, text 0.92 agreement), so only the
+    # text model's word table is made 8-bit; every layer that does the thinking stays fp32.
+    quantize_dynamic(fp32_text, os.path.join(out, "text_model_quantized.onnx"), weight_type=QuantType.QUInt8,
+                     op_types_to_quantize=["Gather"])
 
     # Check every export against the reference.
     def run(name, feed):
@@ -125,18 +125,16 @@ def main(out):
         return s.run(["pooler_output"], feed)[0]
 
     v32 = run("vision_model.onnx", {"pixel_values": pix.numpy()})
-    v8 = run("vision_model_quantized.onnx", {"pixel_values": pix.numpy()})
     t32 = run("text_model.fp32.onnx", {"input_ids": ids.numpy().astype(np.int64)})
     t8 = run("text_model_quantized.onnx", {"input_ids": ids.numpy().astype(np.int64)})
     checks = {
         "vision fp32": cos(v32, ref_img),
-        "vision q8": cos(v8, ref_img),
         "text fp32": cos(t32, ref_txt),
         "text q8": cos(t8, ref_txt),
     }
     print("agreement with PyTorch (cosine, worst row):", {k: round(v, 5) for k, v in checks.items()})
     assert checks["vision fp32"] > 0.9999 and checks["text fp32"] > 0.9999, "fp32 export doesn't match"
-    assert checks["text q8"] > 0.98, "8-bit text model drifted too far"
+    assert checks["text q8"] > 0.995, "8-bit text model drifted too far"
     q_sims = (unit(v32) @ unit(t8).T)[0]
     print("shipped pair (vision fp32 + text q8) similarities:", [round(float(s), 4) for s in q_sims])
     assert list(np.argsort(-q_sims)) == list(np.argsort(-sims)), "8-bit text changes the ranking"
@@ -161,9 +159,7 @@ def main(out):
                 h.update(chunk)
         files.append({"name": name, "path": f"onnx/{name}" if name.endswith(".onnx") else name,
                       "size": os.path.getsize(p), "sha256": h.hexdigest()})
-    # The app downloads everything in the manifest except the 8-bit photo model (kept for comparisons).
-    shipped = [f for f in files if f["name"] != "vision_model_quantized.onnx"]
-    json.dump({"model": MODEL, "files": shipped, "extra": [f for f in files if f not in shipped]}, open(os.path.join(out, "manifest.json"), "w"), indent=2)
+    json.dump({"model": MODEL, "files": files}, open(os.path.join(out, "manifest.json"), "w"), indent=2)
     for f in files:
         print(f"{f['name']:32} {f['size'] / 1e6:8.1f} MB  {f['sha256'][:12]}")
 
