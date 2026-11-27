@@ -50,6 +50,8 @@ jobs:
             dist/*.flatpak
 
   release:
+    # Test builds from other branches stop at the downloadable artifacts: only main (or a tag) publishes a release.
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
     needs: [windows, linux]
     runs-on: ubuntu-24.04
     permissions:
