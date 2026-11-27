@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs'
+import { mkdir } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { addCorrection, type CorrectionSet } from './core/corrections'
 import type { Embedder } from './core/embed'
@@ -25,6 +27,10 @@ export interface HandlerDeps {
   /** Opens the checkout in an app window; resolves with the Checkout Session id once Stripe redirects to successPrefix, or null if closed. */
   openCheckout(url: string, successPrefix: string): Promise<string | null>
   emit(channel: string, payload: unknown): void
+  /** Lightroom Classic's Export Actions folder and how to put Zen Sync in it (absent where Lightroom Classic doesn't run) */
+  lightroom?: { actionsDir: string; fileName: string; install(file: string): Promise<void> }
+  /** A folder sent from Lightroom (or the command line) before the window was ready */
+  takeLaunchFolder?(): string | null
 }
 
 export function createHandlers(deps: HandlerDeps) {
@@ -110,6 +116,29 @@ export function createHandlers(deps: HandlerDeps) {
     /** Saves the current event's parts; an empty list resets them to the event's defaults. */
     async setParts(parts: Part[]): Promise<void> {
       partsStore(currentEvent().id).set(parts.length ? parts : null)
+    },
+
+    async lightroomStatus(): Promise<{ supported: boolean; installed: boolean }> {
+      const lr = deps.lightroom
+      if (!lr) return { supported: false, installed: false }
+      return { supported: true, installed: existsSync(join(lr.actionsDir, lr.fileName)) }
+    },
+
+    /** Adds Zen Sync to Lightroom Classic's After Export menu. */
+    async addToLightroom(): Promise<{ ok: true } | { ok: false; message: string }> {
+      const lr = deps.lightroom
+      if (!lr) return { ok: false, message: "Lightroom Classic isn't available on this computer." }
+      try {
+        await mkdir(lr.actionsDir, { recursive: true })
+        await lr.install(join(lr.actionsDir, lr.fileName))
+        return { ok: true }
+      } catch (e) {
+        return { ok: false, message: `Couldn't add Zen Sync to Lightroom (${(e as Error).message}).` }
+      }
+    },
+
+    async takeLaunchFolder(): Promise<string | null> {
+      return deps.takeLaunchFolder?.() ?? null
     },
 
     async getShortcuts(): Promise<Record<string, string>> {

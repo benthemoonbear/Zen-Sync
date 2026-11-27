@@ -37,18 +37,24 @@ export interface Api {
   deactivate(): Promise<{ ok: boolean; message?: string }>
   buy(): Promise<{ ok: true; customerName: string } | { ok: false; cancelled: true } | { ok: false; message: string }>
   showFolder(path: string): Promise<void>
+  lightroomStatus(): Promise<{ supported: boolean; installed: boolean }>
+  addToLightroom(): Promise<{ ok: true } | { ok: false; message: string }>
+  takeLaunchFolder(): Promise<string | null>
+  /** A folder of photos sent from Lightroom while the app is open */
+  onOpenFolder(cb: (dir: string) => void): () => void
   pathForFile(file: File): string
 }
 
 /** Invoke-style methods, in the order the preload exposes them. */
 export const INVOKE_METHODS = [
   'chooseFolder', 'sort', 'applyClockFix', 'recordCorrection', 'save', 'getParts', 'setParts',
-  'getEvents', 'setEvent', 'getShortcuts', 'setShortcuts', 'licence', 'activate', 'deactivate', 'buy', 'showFolder'
+  'getEvents', 'setEvent', 'getShortcuts', 'setShortcuts', 'licence', 'activate', 'deactivate', 'buy', 'showFolder',
+  'lightroomStatus', 'addToLightroom', 'takeLaunchFolder'
 ] as const
 
 export type InvokeMethod = (typeof INVOKE_METHODS)[number]
 
-export const EVENTS = { progress: 'progress', modelDownload: 'model-download' } as const
+export const EVENTS = { progress: 'progress', modelDownload: 'model-download', openFolder: 'open-folder' } as const
 
 export const THUMB_SMALL = 320
 export const THUMB_LARGE = 1600

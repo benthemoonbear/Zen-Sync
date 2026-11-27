@@ -25,12 +25,16 @@ export function sampleResult(): SortResult {
 }
 
 export function mockApi(overrides: Partial<Api> = {}) {
-  const listeners: { progress?: (p: Progress) => void; download?: (n: number) => void } = {}
+  const listeners: { progress?: (p: Progress) => void; download?: (n: number) => void; openFolder?: (dir: string) => void } = {}
   const api: Api = {
     chooseFolder: vi.fn(async () => '/w/bakewell wedding'),
     sort: vi.fn(async () => sampleResult()),
     onProgress: (cb) => ((listeners.progress = cb), () => {}),
     onModelDownload: (cb) => ((listeners.download = cb), () => {}),
+    onOpenFolder: (cb) => ((listeners.openFolder = cb), () => {}),
+    takeLaunchFolder: vi.fn(async () => null),
+    lightroomStatus: vi.fn(async () => ({ supported: false, installed: false })),
+    addToLightroom: vi.fn(async () => ({ ok: true as const })),
     applyClockFix: vi.fn(async () => ({ ...sampleResult(), clock: [] })),
     recordCorrection: vi.fn(async () => {}),
     save: vi.fn(async () => ({ written: 124, outDir: '/w/bakewell wedding/numbered' })),

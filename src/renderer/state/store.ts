@@ -13,6 +13,10 @@ export interface AppState {
   current: string | null
   /** Where a Shift-click or Shift+arrow range starts */
   anchor: string | null
+  /** A folder (e.g. from Lightroom) the start screen should sort next */
+  incoming: string | null
+  openFolder(dir: string): void
+  takeIncoming(): string | null
   edited: boolean
   load(dir: string, result: SortResult): void
   replaceResult(result: SortResult): void
@@ -39,7 +43,7 @@ export function createAppStore(deps: StoreDeps) {
     const record = (photos: SortedPhoto[], paths: string[]) => {
       for (const p of photos) if (paths.includes(p.path)) void deps.recordCorrection(p.path, p.partId)
     }
-    const empty = { dir: null, result: null, photos: [], partOrder: [], parts: [], selected: [], current: null, anchor: null, edited: false }
+    const empty = { dir: null, result: null, photos: [], partOrder: [], parts: [], selected: [], current: null, anchor: null, edited: false, incoming: null }
     return {
       ...empty,
       load: (dir, result) => {
@@ -120,6 +124,12 @@ export function createAppStore(deps: StoreDeps) {
       goNextUnsure: () => {
         const path = nextUnsure(get().photos, get().current)
         if (path) set({ current: path, selected: [path], anchor: path })
+      },
+      openFolder: (dir) => set({ ...empty, incoming: dir }),
+      takeIncoming: () => {
+        const dir = get().incoming
+        if (dir) set({ incoming: null })
+        return dir
       },
       reset: () => set(empty)
     }

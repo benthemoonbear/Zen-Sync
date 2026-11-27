@@ -1,6 +1,6 @@
 import { useEffect, useState, type DragEvent } from 'react'
 import type { Progress } from '../../shared/api'
-import { appStore } from '../state/store'
+import { appStore, useApp } from '../state/store'
 import { EnsoLoader, EnsoLogo } from '../components/Enso'
 import { EventPicker } from '../components/EventPicker'
 
@@ -54,6 +54,14 @@ export function DropScreen() {
       setBusy(false)
     }
   }
+
+  // A folder sent from Lightroom: sort it as soon as the start screen is showing.
+  const incoming = useApp((s) => s.incoming)
+  useEffect(() => {
+    if (!incoming || busy) return
+    const dir = appStore().getState().takeIncoming()
+    if (dir) void sort(dir)
+  }, [incoming, busy])
 
   async function choose() {
     const dir = await window.api.chooseFolder()

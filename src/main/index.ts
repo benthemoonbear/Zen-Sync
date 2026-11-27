@@ -1,18 +1,82 @@
 import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell } from 'electron'
-import { hostname } from 'node:os'
-import { join } from 'node:path'
+import { rm, symlink } from 'node:fs/promises'
+import { homedir, hostname } from 'node:os'
+import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createSiglipEmbedder } from './core/embed'
 import { createHandlers, type Handlers } from './ipc'
 import { makeThumb, parseThumbUrl } from './thumbs'
 import { INVOKE_METHODS } from '../shared/api'
 import { PAYMENTS } from './payments-config'
+import { createExportCollector, exportActionsDir, newestJpegChange, pathsFromArgv } from './core/lightroom'
+import { EVENTS } from '../shared/api'
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'thumb', privileges: { standard: true, secure: true, supportFetchAPI: true } }
 ])
 
 let win: BrowserWindow | null = null
+
+// One Zen Sync at a time: Lightroom launches the app once per batch of exported photos,
+// so later launches hand their photos to the window that's already open.
+if (!app.requestSingleInstanceLock()) app.quit()
+
+/** A finished export waiting for the window to be ready, and whether the window is listening yet. */
+let launchFolder: string | null = null
+let rendererListening = false
+const exportCollector = createExportCollector({
+  quietMs: 2000,
+  settleMs: 1500,
+  newestChangeMs: newestJpegChange,
+  onReady: (folder) => {
+    if (win && rendererListening) {
+      win.webContents.send(EVENTS.openFolder, folder)
+      if (win.isMinimized()) win.restore()
+      win.focus()
+    } else launchFolder = folder
+  }
+})
+const receive = (argv: string[]) => {
+  const paths = pathsFromArgv(argv)
+  if (paths.length) exportCollector.add(paths)
+}
+receive(process.argv)
+app.on('second-instance', (_e, argv) => {
+  receive(argv)
+  if (win) {
+    if (win.isMinimized()) win.restore()
+    win.focus()
+  }
+})
+// macOS hands files to an already-running app this way.
+app.on('open-file', (e, path) => {
+  e.preventDefault()
+  exportCollector.add([path])
+})
+
+/** Puts Zen Sync in Lightroom Classic's After Export menu: a shortcut (Windows) or an alias to the app (Mac). */
+function lightroomDeps() {
+  const actionsDir = exportActionsDir(process.platform, process.env, homedir())
+  if (!actionsDir) return undefined
+  if (process.platform === 'win32') {
+    return {
+      actionsDir,
+      fileName: 'Zen Sync.lnk',
+      install: async (file: string) => {
+        const ok = shell.writeShortcutLink(file, 'replace', { target: process.execPath, description: 'Put the exported photos in wedding-day order with Zen Sync' })
+        if (!ok) throw new Error('Windows refused to create the shortcut')
+      }
+    }
+  }
+  return {
+    actionsDir,
+    fileName: 'Zen Sync.app',
+    install: async (file: string) => {
+      await rm(file, { force: true })
+      await symlink(resolve(process.execPath, '../../..'), file)
+    }
+  }
+}
 
 function createWindow(): void {
   win = new BrowserWindow({
@@ -107,7 +171,14 @@ app.whenReady().then(() => {
     serverUrl: String(import.meta.env.MAIN_VITE_LICENCE_SERVER_URL || PAYMENTS.licenceServerUrl),
     checkoutUrl: String(import.meta.env.MAIN_VITE_CHECKOUT_URL || PAYMENTS.checkoutUrl),
     openCheckout,
-    emit: (channel, payload) => win?.webContents.send(channel, payload)
+    emit: (channel, payload) => win?.webContents.send(channel, payload),
+    lightroom: lightroomDeps(),
+    takeLaunchFolder: () => {
+      rendererListening = true
+      const f = launchFolder
+      launchFolder = null
+      return f
+    }
   })
   register(handlers)
   createWindow()

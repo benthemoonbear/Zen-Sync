@@ -1,11 +1,11 @@
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 import { join } from 'node:path'
 import { createHandlers } from '../../src/main/ipc'
 import { FakeEmbedder } from '../fakes/fakeEmbedder'
 import { tempDir, writeJpeg } from '../helpers/jpeg'
 import { DEFAULT_PARTS } from '../../src/main/core/parts'
 
-async function setup(n = 3) {
+async function setup(n = 3, extra: Partial<Parameters<typeof createHandlers>[0]> = {}) {
   const userData = await tempDir('userdata')
   const dir = await tempDir('wedding')
   for (let i = 1; i <= n; i++) await writeJpeg(dir, `IMG${String(i).padStart(4, '0')}.jpg`)
@@ -21,7 +21,8 @@ async function setup(n = 3) {
     serverUrl: '',
     checkoutUrl: '',
     openCheckout: async () => null,
-    emit: (c, p) => events.push([c, p])
+    emit: (c, p) => events.push([c, p]),
+    ...extra
   })
   return { h, dir, userData, events }
 }
@@ -85,6 +86,41 @@ describe('ipc handlers', () => {
     expect(await h.getParts()).toHaveLength(2)
     await h.setParts([])
     expect(await h.getParts()).toHaveLength(DEFAULT_PARTS.length)
+  })
+
+  test('Lightroom: not offered where Lightroom Classic does not run', async () => {
+    const { h } = await setup(1)
+    expect(await h.lightroomStatus()).toEqual({ supported: false, installed: false })
+  })
+
+  test('Lightroom: adds Zen Sync to the After Export menu, creating the folder if needed', async () => {
+    const root = await tempDir('appdata')
+    const actions = join(root, 'Adobe', 'Lightroom', 'Export Actions')
+    const { writeFile } = await import('node:fs/promises')
+    const install = vi.fn(async (file: string) => writeFile(file, 'link'))
+    const { h } = await setup(1, { lightroom: { actionsDir: actions, fileName: 'Zen Sync.lnk', install } })
+    expect(await h.lightroomStatus()).toEqual({ supported: true, installed: false })
+    expect(await h.addToLightroom()).toEqual({ ok: true })
+    expect(install).toHaveBeenCalledWith(join(actions, 'Zen Sync.lnk'))
+    expect(await h.lightroomStatus()).toEqual({ supported: true, installed: true })
+  })
+
+  test('Lightroom: a failure to add is reported, not thrown', async () => {
+    const root = await tempDir('appdata')
+    const { writeFile } = await import('node:fs/promises')
+    await writeFile(join(root, 'a-file'), 'x')
+    const { h } = await setup(1, {
+      lightroom: { actionsDir: join(root, 'a-file', 'Export Actions'), fileName: 'Zen Sync.lnk', install: async () => {} }
+    })
+    const r = await h.addToLightroom()
+    expect(r.ok).toBe(false)
+  })
+
+  test('a folder Lightroom sent before the window was ready is handed over once', async () => {
+    let pending: string | null = '/x/export'
+    const { h } = await setup(1, { takeLaunchFolder: () => { const p = pending; pending = null; return p } })
+    expect(await h.takeLaunchFolder()).toBe('/x/export')
+    expect(await h.takeLaunchFolder()).toBeNull()
   })
 
   test('custom keyboard shortcuts are saved and loaded', async () => {
