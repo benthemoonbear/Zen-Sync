@@ -21,7 +21,7 @@ describe('photos sent from Lightroom', () => {
 
   test('Lightroom puts Zen Sync in its After Export menu from the Export Actions folder', () => {
     expect(exportActionsDir('win32', { APPDATA: 'C:\\Users\\Ben\\AppData\\Roaming' }, 'C:\\Users\\Ben')).toBe(
-      join('C:\\Users\\Ben\\AppData\\Roaming', 'Adobe', 'Lightroom', 'Export Actions')
+      'C:\\Users\\Ben\\AppData\\Roaming\\Adobe\\Lightroom\\Export Actions'
     )
     expect(exportActionsDir('darwin', {}, '/Users/ben')).toBe('/Users/ben/Library/Application Support/Adobe/Lightroom/Export Actions')
     expect(exportActionsDir('linux', {}, '/home/ben')).toBeNull()
@@ -166,6 +166,6 @@ describe('darktable', () => {
     const { darktableConfigDir } = await import('../../src/main/core/lightroom')
     expect(darktableConfigDir('linux', {}, '/home/ben')).toBe('/home/ben/.config/darktable')
     expect(darktableConfigDir('darwin', {}, '/Users/ben')).toBe('/Users/ben/.config/darktable')
-    expect(darktableConfigDir('win32', { LOCALAPPDATA: 'C:\\L' }, 'C:\\Users\\Ben')).toBe(join('C:\\L', 'darktable'))
+    expect(darktableConfigDir('win32', { LOCALAPPDATA: 'C:\\L' }, 'C:\\Users\\Ben')).toBe('C:\\L\\darktable')
   })
 })

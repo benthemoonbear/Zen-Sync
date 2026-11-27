@@ -1,6 +1,6 @@
 import { existsSync, statSync, watch } from 'node:fs'
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, join, posix, relative, resolve, win32 } from 'node:path'
 
 const JPEG = /\.jpe?g$/i
 
@@ -26,8 +26,9 @@ export function pathsFromArgv(argv: string[]): string[] {
 
 /** Lightroom Classic's Export Actions folder: whatever is in it appears in the Export dialog's After Export menu. */
 export function exportActionsDir(platform: NodeJS.Platform, env: Record<string, string | undefined>, home: string): string | null {
-  if (platform === 'win32') return env.APPDATA ? join(env.APPDATA, 'Adobe', 'Lightroom', 'Export Actions') : null
-  if (platform === 'darwin') return join(home, 'Library', 'Application Support', 'Adobe', 'Lightroom', 'Export Actions')
+  // Each system's own path style, whatever system this runs on.
+  if (platform === 'win32') return env.APPDATA ? win32.join(env.APPDATA, 'Adobe', 'Lightroom', 'Export Actions') : null
+  if (platform === 'darwin') return posix.join(home, 'Library', 'Application Support', 'Adobe', 'Lightroom', 'Export Actions')
   return null
 }
 
@@ -125,8 +126,8 @@ export function watchFolder(root: string, onPhotos: (paths: string[]) => void, o
 
 /** darktable's settings folder (where luarc and the lua/ scripts folder live). */
 export function darktableConfigDir(platform: NodeJS.Platform, env: Record<string, string | undefined>, home: string): string {
-  if (platform === 'win32') return join(env.LOCALAPPDATA ?? join(home, 'AppData', 'Local'), 'darktable')
-  return join(home, '.config', 'darktable')
+  if (platform === 'win32') return win32.join(env.LOCALAPPDATA ?? win32.join(home, 'AppData', 'Local'), 'darktable')
+  return posix.join(home, '.config', 'darktable')
 }
 
 /**
