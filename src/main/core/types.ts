@@ -52,6 +52,10 @@ export interface SortResult {
   cameras: Camera[]
   clock: ClockSuggestion[]
   skipped: Skipped[]
+  /** The type of event the parts came from, and whether Zen Sync detected it */
+  event?: { id: string; name: string; detected: boolean }
+  /** Moments found that aren't on the parts list, offered as new parts */
+  moments?: { name: string; paths: string[]; afterPartId: string | null }[]
 }
 
 export type SaveMode = 'single' | 'perPart'

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { applyClockFix, runSort } from '../../src/main/core/pipeline'
+import { applyClockFix, reclassify, runSort } from '../../src/main/core/pipeline'
 import { FakeEmbedder } from '../fakes/fakeEmbedder'
 import { tempDir, writeJpeg } from '../helpers/jpeg'
 import type { Part } from '../../src/main/core/types'
@@ -115,4 +115,48 @@ test('if the model fails on every photo, the sort fails with MODEL_FAILED', asyn
   const { dir, emb } = await wedding()
   const broken = { embedTexts: (t: string[]) => emb.embedTexts(t), embedImages: async () => { throw new Error('out of memory') } }
   await expect(runSort(dir, { embedder: broken, parts })).rejects.toThrow('MODEL_FAILED')
+})
+
+describe('dynamic events', () => {
+  test('the parts can be chosen after the photos are seen (automatic event type)', async () => {
+    const { dir, emb } = await wedding()
+    let seen = 0
+    const { result } = await runSort(dir, {
+      embedder: emb,
+      parts: [],
+      choose: async (images) => {
+        seen = images.length
+        return { parts, event: { id: 'wedding', name: 'Wedding', detected: true } }
+      }
+    })
+    expect(seen).toBe(5)
+    expect(result.event).toEqual({ id: 'wedding', name: 'Wedding', detected: true })
+    expect(result.parts).toBe(parts)
+  })
+
+  test('switching event type re-sorts without reading the photos again', async () => {
+    const { dir, emb } = await wedding()
+    const session = await runSort(dir, { embedder: emb, parts })
+    const calls = emb.imageCalls
+    const other: Part[] = [{ id: 'confetti', name: 'Confetti', prompts: ['confetti'] }]
+    const next = await reclassify(session, { embedder: emb, parts: other, event: { id: 'x', name: 'X', detected: false } })
+    expect(emb.imageCalls).toBe(calls)
+    expect(next.result.photos.every((p) => p.partId === 'confetti')).toBe(true)
+    expect(next.result.event?.id).toBe('x')
+    expect(next.result.photos).toHaveLength(5)
+  })
+
+  test('moments not on the list come back as suggestions', async () => {
+    const { dir } = await wedding()
+    const emb = new FakeEmbedder({
+      ceremony: [1, 0, 0, 0], confetti: [0, 1, 0, 0], 'a photo of Fireworks': [0, 0, 1, 0],
+      'AAA001.jpg': [0, 0.1, 1, 0], 'AAA002.jpg': [0, 0.1, 1, 0], 'AAA003.jpg': [0, 0.1, 1, 0],
+      'BBB001.jpg': [0, 0.1, 1, 0], 'BBB002.jpg': [0, 0.1, 1, 0]
+    })
+    // Five similar photos within 20 minutes of each other on one camera's clock (B is 9 hours off, so use only A's)
+    const { result } = await runSort(dir, { embedder: emb, parts, vocab: ['Fireworks'] })
+    expect(result.moments?.map((m) => m.name)).toEqual([])
+    const r2 = await runSort(dir, { embedder: emb, parts, vocab: ['Fireworks'], minMomentPhotos: 3 })
+    expect(r2.result.moments?.[0].name).toBe('Fireworks')
+  })
 })

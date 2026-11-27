@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
 import { ClockBanner } from '../components/ClockBanner'
 import { EnsoLogo } from '../components/Enso'
+import { EventChip } from '../components/EventChip'
+import { MomentSuggestions } from '../components/MomentSuggestions'
 import { Preview } from '../components/Preview'
 import { Strip } from '../components/Strip'
 import { Timeline } from '../components/Timeline'
@@ -115,6 +117,7 @@ export function ReviewScreen({ onSave, onSettings, dialogOpen = false }: { onSav
           <span className="stats">
             {photos.length} photos, {cameraCount} {cameraCount === 1 ? 'camera' : 'cameras'}
           </span>
+          <EventChip />
         </div>
         {selectedCount > 1 && (
           <span className="sel-count" data-testid="selection-count">{selectedCount} selected</span>
@@ -140,6 +143,7 @@ export function ReviewScreen({ onSave, onSettings, dialogOpen = false }: { onSav
         </div>
       )}
       <ClockBanner />
+      <MomentSuggestions />
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
         <Timeline />
         <div className="body">

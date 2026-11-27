@@ -6,6 +6,8 @@ export interface EventType {
   name: string
   /** Default parts, in the order the day usually runs */
   parts: Part[]
+  /** What photos from this kind of event look like, for detecting the event type automatically */
+  prompts: string[]
 }
 
 const CORPORATE: Part[] = [
@@ -142,17 +144,33 @@ const ENGAGEMENT: Part[] = [
 ]
 
 export const EVENT_TYPES: EventType[] = [
-  { id: 'wedding', name: 'Wedding', parts: DEFAULT_PARTS },
-  { id: 'corporate', name: 'Corporate event', parts: CORPORATE },
-  { id: 'party', name: 'Party or birthday', parts: PARTY },
-  { id: 'christening', name: 'Christening', parts: CHRISTENING },
-  { id: 'engagement', name: 'Engagement shoot', parts: ENGAGEMENT }
+  { id: 'wedding', name: 'Wedding', parts: DEFAULT_PARTS, prompts: [
+    'a photo from a wedding day', 'a photo of a bride and groom at their wedding', 'a photo of wedding guests in formal clothes'
+  ] },
+  { id: 'corporate', name: 'Corporate event', parts: CORPORATE, prompts: [
+    'a photo from a corporate conference', 'a photo of business people at a work event', 'a photo of a speaker at a business event'
+  ] },
+  { id: 'party', name: 'Party or birthday', parts: PARTY, prompts: [
+    'a photo from a birthday party', 'a photo of friends celebrating at a party', 'a photo of party decorations and balloons'
+  ] },
+  { id: 'christening', name: 'Christening', parts: CHRISTENING, prompts: [
+    'a photo from a christening', 'a photo of a baby being baptised in a church', 'a photo of a family with a baby in white'
+  ] },
+  { id: 'engagement', name: 'Engagement shoot', parts: ENGAGEMENT, prompts: [
+    'a photo from a couple engagement photoshoot', 'a romantic portrait of a couple outdoors', 'a photo of a couple in casual clothes posing'
+  ] }
 ]
 
 export const DEFAULT_EVENT = 'wedding'
 
 export function eventById(id: string): EventType {
   return EVENT_TYPES.find((e) => e.id === id) ?? EVENT_TYPES[0]
+}
+
+/** What photos from a custom event type look like, described from its name. */
+export function eventPromptsFor(name: string): string[] {
+  const n = name.trim().toLowerCase() || 'event'
+  return [`a photo from a ${n}`, `a photo taken at a ${n}`]
 }
 
 /** Prompts for a part; a part the user added (no prompts) is described from its name. */

@@ -196,15 +196,15 @@ describe('SettingsDialog', () => {
         .mockResolvedValueOnce([{ id: 'a', name: 'Getting ready', prompts: ['x'] }])
         .mockResolvedValue([{ id: 'talks', name: 'Talks and presentations', prompts: ['y'] }])
     })
-    fireEvent.change(await screen.findByRole('combobox', { name: 'Type of event' }), { target: { value: 'corporate' } })
-    await waitFor(() => expect(api.setEvent).toHaveBeenCalledWith('corporate'))
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Event type to edit' }), { target: { value: 'corporate' } })
+    await waitFor(() => expect(api.getParts).toHaveBeenLastCalledWith('corporate'))
     expect(await screen.findByDisplayValue('Talks and presentations')).toBeTruthy()
   })
 
   test('reset puts back the default parts for the event', async () => {
     const { api } = await openSettings()
     fireEvent.click(await screen.findByRole('button', { name: 'Reset to defaults' }))
-    await waitFor(() => expect(api.setParts).toHaveBeenCalledWith([]))
+    await waitFor(() => expect(api.setParts).toHaveBeenCalledWith([], 'wedding'))
     expect(api.getParts).toHaveBeenCalledTimes(2)
   })
 

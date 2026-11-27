@@ -1,8 +1,29 @@
 import { useEffect, useState } from 'react'
 
-/** "Type of event" dropdown. Saves the choice straight away; onChanged runs after it's saved. */
+type EventRow = { id: string; name: string; custom?: boolean }
+
+/** Options for an event-type select: built-in types, then your own. */
+export function EventOptions({ events }: { events: EventRow[] }) {
+  const own = events.filter((e) => e.custom)
+  return (
+    <>
+      {events.filter((e) => !e.custom).map((e) => (
+        <option key={e.id} value={e.id}>{e.name}</option>
+      ))}
+      {own.length > 0 && (
+        <optgroup label="Your event types">
+          {own.map((e) => (
+            <option key={e.id} value={e.id}>{e.name}</option>
+          ))}
+        </optgroup>
+      )}
+    </>
+  )
+}
+
+/** Start screen "Type of event": Automatic (detect from the photos) or a type. Saved straight away. */
 export function EventPicker({ onChanged }: { onChanged?: (id: string) => void }) {
-  const [events, setEvents] = useState<{ id: string; name: string }[]>([])
+  const [events, setEvents] = useState<EventRow[]>([])
   const [current, setCurrent] = useState('')
 
   useEffect(() => {
@@ -22,9 +43,8 @@ export function EventPicker({ onChanged }: { onChanged?: (id: string) => void })
     <label className="event-picker">
       <span>Type of event</span>
       <select aria-label="Type of event" value={current} onChange={(e) => void change(e.target.value)}>
-        {events.map((e) => (
-          <option key={e.id} value={e.id}>{e.name}</option>
-        ))}
+        <option value="auto">Automatic (detect from the photos)</option>
+        <EventOptions events={events} />
       </select>
     </label>
   )

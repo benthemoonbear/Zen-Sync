@@ -28,12 +28,18 @@ export interface Api {
   applyClockFix(cameraId: string): Promise<SortResult>
   recordCorrection(path: string, partId: string): Promise<void>
   save(req: SaveRequest): Promise<SaveResponse>
-  getParts(): Promise<Part[]>
-  setParts(parts: Part[]): Promise<void>
+  getParts(eventId?: string): Promise<Part[]>
+  setParts(parts: Part[], eventId?: string): Promise<void>
   getShortcuts(): Promise<Record<string, string>>
   setShortcuts(map: Record<string, string>): Promise<void>
-  getEvents(): Promise<{ current: string; events: { id: string; name: string }[] }>
+  /** current is 'auto' (detect from the photos) or an event type id */
+  getEvents(): Promise<{ current: string; events: { id: string; name: string; custom?: boolean }[] }>
   setEvent(id: string): Promise<void>
+  createEvent(name: string): Promise<string>
+  renameEvent(id: string, name: string): Promise<void>
+  deleteEvent(id: string): Promise<void>
+  /** Re-sort the open job as another event type (no re-reading photos) */
+  resortAs(eventId: string): Promise<SortResult>
   licence(): Promise<{ licensed: boolean; customerName?: string; key?: string }>
   activate(key: string): Promise<{ ok: true; customerName: string } | { ok: false; message: string }>
   deactivate(): Promise<{ ok: boolean; message?: string }>
@@ -61,7 +67,7 @@ export interface Api {
 /** Invoke-style methods, in the order the preload exposes them. */
 export const INVOKE_METHODS = [
   'chooseFolder', 'sort', 'applyClockFix', 'recordCorrection', 'save', 'getParts', 'setParts',
-  'getEvents', 'setEvent', 'getShortcuts', 'setShortcuts', 'licence', 'activate', 'deactivate', 'buy', 'showFolder',
+  'getEvents', 'setEvent', 'createEvent', 'renameEvent', 'deleteEvent', 'resortAs', 'getShortcuts', 'setShortcuts', 'licence', 'activate', 'deactivate', 'buy', 'showFolder',
   'lightroomStatus', 'addToLightroom', 'takeLaunchFolder',
   'syncJob', 'syncedJobs', 'stopSyncing',
   'getWatchFolder', 'chooseWatchFolder', 'clearWatchFolder', 'appLocation', 'darktableSupported', 'addToDarktable'

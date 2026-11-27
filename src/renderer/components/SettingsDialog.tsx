@@ -5,7 +5,7 @@ import { CSS } from '@dnd-kit/utilities'
 import type { Part } from '../../main/core/types'
 import { UnlockPanel } from './UnlockDialog'
 import { partColour } from '../format'
-import { EventPicker } from './EventPicker'
+import { EventOptions } from './EventPicker'
 import { ShortcutsPanel } from './ShortcutsPanel'
 import { EditorsPanel } from './EditorsPanel'
 import { SyncedJobsPanel } from './SyncedJobsPanel'
@@ -40,15 +40,52 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const [shortcuts, setShortcuts] = useState<ShortcutMap>(useShortcuts.getState().map)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
 
-  const loadParts = () => void window.api.getParts().then(setParts)
+  // The event type whose parts are being edited (Settings never edits "Automatic").
+  const [events, setEvents] = useState<{ id: string; name: string; custom?: boolean }[]>([])
+  const [editId, setEditId] = useState<string | null>(null)
+  const [naming, setNaming] = useState<null | { mode: 'new' | 'rename'; value: string }>(null)
+  const loadEvents = () =>
+    window.api.getEvents().then((r) => {
+      setEvents(r.events)
+      return r
+    })
+  const loadParts = (id = editId) => id && void window.api.getParts(id).then(setParts)
   useEffect(() => {
-    loadParts()
+    void loadEvents().then((r) => {
+      const id = r.current === 'auto' || !r.events.some((e) => e.id === r.current) ? 'wedding' : r.current
+      setEditId(id)
+      loadParts(id)
+    })
     void window.api.licence().then(setLicence)
     void useShortcuts.getState().load().then(() => setShortcuts(useShortcuts.getState().map))
   }, [])
 
+  const editingCustom = events.find((e) => e.id === editId && e.custom)
+
+  async function finishNaming() {
+    if (!naming || !naming.value.trim()) return setNaming(null)
+    if (naming.mode === 'new') {
+      const id = await window.api.createEvent(naming.value.trim())
+      await loadEvents()
+      setEditId(id)
+      loadParts(id)
+    } else if (editId) {
+      await window.api.renameEvent(editId, naming.value.trim())
+      await loadEvents()
+    }
+    setNaming(null)
+  }
+
+  async function removeEvent() {
+    if (!editingCustom) return
+    await window.api.deleteEvent(editingCustom.id)
+    await loadEvents()
+    setEditId('wedding')
+    loadParts('wedding')
+  }
+
   async function reset() {
-    await window.api.setParts([])
+    await window.api.setParts([], editId!)
     loadParts()
   }
 
@@ -64,7 +101,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
       const group = p.group?.trim()
       return { ...p, name: p.name.trim() || 'Untitled', group: group || undefined }
     })
-    await window.api.setParts(cleaned)
+    await window.api.setParts(cleaned, editId!)
     await useShortcuts.getState().save(shortcuts)
     onClose()
   }
@@ -95,7 +132,40 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           <button role="tab" aria-selected={tab === 'sync'} className={tab === 'sync' ? 'on' : ''} onClick={() => setTab('sync')}>Synced jobs</button>
         </div>
         {tab === 'sync' ? <SyncedJobsPanel /> : tab === 'editors' ? <EditorsPanel /> : tab === 'shortcuts' ? <ShortcutsPanel map={shortcuts} onChange={setShortcuts} /> : <>
-        <EventPicker onChanged={loadParts} />
+        <div className="event-bar">
+          {naming ? (
+            <>
+              <input
+                type="text"
+                autoFocus
+                aria-label={naming.mode === 'new' ? 'Name of the new event type' : 'New name for this event type'}
+                placeholder="e.g. Bar mitzvah, Product launch"
+                value={naming.value}
+                onChange={(e) => setNaming({ ...naming, value: e.target.value })}
+                onKeyDown={(e) => e.key === 'Enter' && void finishNaming()}
+              />
+              <button className="primary" onClick={() => void finishNaming()}>{naming.mode === 'new' ? 'Create' : 'Rename'}</button>
+              <button className="ghost" onClick={() => setNaming(null)}>Cancel</button>
+            </>
+          ) : (
+            <>
+              <label className="event-picker">
+                <span>Event type</span>
+                <select aria-label="Event type to edit" value={editId ?? ''} onChange={(e) => { setEditId(e.target.value); loadParts(e.target.value) }}>
+                  <EventOptions events={events} />
+                </select>
+              </label>
+              {editingCustom && (
+                <>
+                  <button className="ghost" onClick={() => setNaming({ mode: 'rename', value: editingCustom.name })}>Rename</button>
+                  <button className="ghost" aria-label="Delete event type" onClick={() => void removeEvent()}>Delete</button>
+                </>
+              )}
+              <span style={{ flex: 1 }} />
+              <button onClick={() => setNaming({ mode: 'new', value: '' })}>New event type</button>
+            </>
+          )}
+        </div>
         <p>Parts of the day, in order. Drag to reorder. Give parts the same folder to save them as sub-folders inside it. Changes apply the next time you sort a folder.</p>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={parts.map((p) => p.id)} strategy={verticalListSortingStrategy}>

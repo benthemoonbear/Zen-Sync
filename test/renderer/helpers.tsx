@@ -55,6 +55,10 @@ export function mockApi(overrides: Partial<Api> = {}) {
       events: [{ id: 'wedding', name: 'Wedding' }, { id: 'corporate', name: 'Corporate event' }]
     })),
     setEvent: vi.fn(async () => {}),
+    createEvent: vi.fn(async () => 'custom-1'),
+    renameEvent: vi.fn(async () => {}),
+    deleteEvent: vi.fn(async () => {}),
+    resortAs: vi.fn(async () => sampleResult()),
     getShortcuts: vi.fn(async () => ({})),
     setShortcuts: vi.fn(async () => {}),
     licence: vi.fn(async () => ({ licensed: false })),

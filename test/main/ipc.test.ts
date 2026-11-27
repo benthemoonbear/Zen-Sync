@@ -122,8 +122,9 @@ describe('ipc handlers', () => {
   test('event types: switching changes the parts, and each keeps its own edits', async () => {
     const { h } = await setup(1)
     const ev = await h.getEvents()
-    expect(ev.current).toBe('wedding')
+    expect(ev.current).toBe('auto')
     expect(ev.events.map((e) => e.id)).toContain('corporate')
+    await h.setEvent('wedding')
     await h.setParts(DEFAULT_PARTS.slice(0, 2))
     await h.setEvent('corporate')
     expect((await h.getEvents()).current).toBe('corporate')
@@ -213,7 +214,42 @@ describe('ipc handlers', () => {
   test('an unknown event type is ignored', async () => {
     const { h } = await setup(1)
     await h.setEvent('nonsense')
-    expect((await h.getEvents()).current).toBe('wedding')
+    expect((await h.getEvents()).current).toBe('auto')
+  })
+
+  test('Automatic: the event type is detected from the photos, and can be switched without re-reading them', async () => {
+    const { h, dir } = await setup(3)
+    const r = await h.sort(dir)
+    expect(r.event?.detected).toBe(true)
+    expect(r.event?.id).toBeTruthy()
+    const again = await h.resortAs('corporate')
+    expect(again.event).toEqual({ id: 'corporate', name: 'Corporate event', detected: false })
+    expect(again.parts[0].name).toBe('Arrival and registration')
+    expect(again.photos).toHaveLength(3)
+  })
+
+  test('your own event types: create, edit their parts, rename and delete', async () => {
+    const { h } = await setup(1)
+    const id = await h.createEvent('Bar mitzvah')
+    const ev = await h.getEvents()
+    expect(ev.events.find((e) => e.id === id)).toEqual({ id, name: 'Bar mitzvah', custom: true })
+    expect((await h.getParts(id)).length).toBeGreaterThan(2)
+    await h.setParts([{ id: 'torah', name: 'Torah reading', prompts: [] }], id)
+    expect((await h.getParts(id)).map((p) => p.name)).toEqual(['Torah reading'])
+    await h.renameEvent(id, 'Bat mitzvah')
+    expect((await h.getEvents()).events.find((e) => e.id === id)?.name).toBe('Bat mitzvah')
+    await h.setEvent(id)
+    await h.deleteEvent(id)
+    const after = await h.getEvents()
+    expect(after.events.some((e) => e.id === id)).toBe(false)
+    expect(after.current).toBe('auto')
+  })
+
+  test('built-in event types cannot be renamed or deleted', async () => {
+    const { h } = await setup(1)
+    await h.renameEvent('wedding', 'Nope')
+    await h.deleteEvent('wedding')
+    expect((await h.getEvents()).events.find((e) => e.id === 'wedding')?.name).toBe('Wedding')
   })
 
   test('wedding parts saved by an older version are kept', async () => {

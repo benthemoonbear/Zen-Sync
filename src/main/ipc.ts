@@ -4,9 +4,12 @@ import { join, resolve, sep } from 'node:path'
 import { addCorrection, type CorrectionSet } from './core/corrections'
 import type { Embedder } from './core/embed'
 import { activate, canSave, claimPurchase, deactivate, isLicensed, type LicenceState } from './core/licence'
-import { DEFAULT_EVENT, EVENT_TYPES, eventById, partsForSort } from './core/events'
+import { DEFAULT_EVENT, EVENT_TYPES, eventById, eventPromptsFor, partsForSort } from './core/events'
+import { pickEvent } from './core/detect'
+import { MOMENT_VOCAB } from './core/moments-vocab'
+import { applyClockFix, reclassify, runSort, type SortSession } from './core/pipeline'
+import { normalise } from './core/embed'
 import { MODEL } from './core/embed'
-import { applyClockFix, runSort, type SortSession } from './core/pipeline'
 import { OUTPUT_FOLDER, planOutput, writeCopies } from './core/save'
 import { createStore } from './core/store'
 import { scanFolder } from './core/scan'
@@ -98,15 +101,38 @@ export function createHandlers(deps: HandlerDeps) {
 
   const watchStore = createStore<string | null>(join(deps.userData, 'watch-folder.json'), null)
   const shortcutsStore = createStore<Record<string, string>>(join(deps.userData, 'shortcuts.json'), {})
-  const eventStore = createStore<string>(join(deps.userData, 'event.json'), DEFAULT_EVENT)
-  const currentEvent = () => eventById(eventStore.get())
+  /** 'auto' (detect from the photos) or an event type id */
+  const eventStore = createStore<string>(join(deps.userData, 'event.json'), 'auto')
+  const customEventsStore = createStore<{ id: string; name: string }[]>(join(deps.userData, 'custom-events.json'), [])
+  /** Starting parts for an event type you make yourself (recognised from their names). */
+  const CUSTOM_DEFAULT_PARTS: Part[] = ['Getting ready', 'Arrival', 'Main event', 'Speeches', 'Food', 'Celebration', 'Dancing'].map(
+    (name) => ({ id: name.toLowerCase().replace(/\s+/g, '-'), name, prompts: [] })
+  )
+  const allEvents = () => [
+    ...EVENT_TYPES.map((e) => ({ id: e.id, name: e.name, custom: false, parts: e.parts, prompts: e.prompts })),
+    ...customEventsStore.get().map((e) => ({ id: e.id, name: e.name, custom: true, parts: CUSTOM_DEFAULT_PARTS, prompts: eventPromptsFor(e.name) }))
+  ]
+  const findEvent = (id: string) => allEvents().find((e) => e.id === id)
+  /** The event type Settings edits when none is named: the chosen one, or weddings when set to Automatic. */
+  const editingEvent = () => findEvent(eventStore.get()) ?? findEvent(DEFAULT_EVENT)!
   // Wedding parts keep the original parts.json, so edits from older versions carry over.
   const partsStore = (id: string) =>
     createStore<Part[] | null>(join(deps.userData, id === 'wedding' ? 'parts.json' : `parts-${id}.json`), null)
-  const loadParts = (): Part[] => {
-    const ev = currentEvent()
+  const loadParts = (id = editingEvent().id): Part[] => {
+    const ev = findEvent(id) ?? editingEvent()
     const saved = partsStore(ev.id).get()
     return Array.isArray(saved) && saved.length ? saved : ev.parts
+  }
+  /** Event-type descriptions as embeddings, for detecting the type from the photos. */
+  async function eventEmbeddings(model: Embedder) {
+    const evs = allEvents()
+    const texts = await model.embedTexts(evs.flatMap((e) => e.prompts))
+    let i = 0
+    return evs.map((e) => {
+      const sum = new Float32Array(texts[0]?.length ?? 0)
+      for (let k = 0; k < e.prompts.length; k++, i++) texts[i].forEach((x, d) => (sum[d] += x))
+      return { id: e.id, emb: normalise(sum) }
+    })
   }
   const licenceStore = createStore<LicenceState | null>(join(deps.userData, 'licence.json'), null)
   // Corrections hold embeddings, which only mean something to the model that made them.
@@ -135,12 +161,39 @@ export function createHandlers(deps: HandlerDeps) {
         console.error('Model load failed:', e)
         throw new Error('MODEL_DOWNLOAD_FAILED')
       }
+      const chosen = findEvent(eventStore.get())
       session = await runSort(dir, {
         embedder: model,
-        parts: partsForSort(loadParts()),
+        parts: partsForSort(loadParts(chosen?.id)),
+        event: chosen ? { id: chosen.id, name: chosen.name, detected: false } : undefined,
+        // Automatic: work out the event type from the photos, then use its parts.
+        choose: chosen
+          ? undefined
+          : async (images) => {
+              const id = pickEvent(images, await eventEmbeddings(model)).id ?? DEFAULT_EVENT
+              const ev = findEvent(id)!
+              return { parts: partsForSort(loadParts(id)), event: { id, name: ev.name, detected: true } }
+            },
+        vocab: MOMENT_VOCAB,
         corrections: correctionsStore.get(),
         only: only?.length ? only.map((p) => resolve(p)).filter((p) => p.startsWith(resolve(dir) + sep)) : undefined,
         onProgress: (stage, done, total) => deps.emit(EVENTS.progress, { stage, done, total })
+      })
+      allowed = new Set(session.result.photos.map((p) => resolve(p.path)))
+      return session.result
+    },
+
+    /** Re-sorts the open job as another event type, using the photos already read. */
+    async resortAs(eventId: string): Promise<SortResult> {
+      if (!session) throw new Error('Nothing sorted yet')
+      const ev = findEvent(eventId)
+      if (!ev) throw new Error('Unknown event type')
+      session = await reclassify(session, {
+        embedder: await getEmbedder(),
+        parts: partsForSort(loadParts(ev.id)),
+        event: { id: ev.id, name: ev.name, detected: false },
+        vocab: MOMENT_VOCAB,
+        corrections: correctionsStore.get()
       })
       allowed = new Set(session.result.photos.map((p) => resolve(p.path)))
       return session.result
@@ -182,13 +235,14 @@ export function createHandlers(deps: HandlerDeps) {
       return { written: r.written, outDir: join(req.dir, OUTPUT_FOLDER) }
     },
 
-    async getParts(): Promise<Part[]> {
-      return loadParts()
+    /** Parts of an event type (default: the one being edited). */
+    async getParts(eventId?: string): Promise<Part[]> {
+      return loadParts(eventId)
     },
 
     /** Saves the current event's parts; an empty list resets them to the event's defaults. */
-    async setParts(parts: Part[]): Promise<void> {
-      partsStore(currentEvent().id).set(parts.length ? parts : null)
+    async setParts(parts: Part[], eventId?: string): Promise<void> {
+      partsStore(findEvent(eventId ?? '')?.id ?? editingEvent().id).set(parts.length ? parts : null)
     },
 
     async lightroomStatus(): Promise<{ supported: boolean; installed: boolean }> {
@@ -274,12 +328,38 @@ export function createHandlers(deps: HandlerDeps) {
       shortcutsStore.set(clean)
     },
 
-    async getEvents(): Promise<{ current: string; events: { id: string; name: string }[] }> {
-      return { current: currentEvent().id, events: EVENT_TYPES.map(({ id, name }) => ({ id, name })) }
+    async getEvents(): Promise<{ current: string; events: { id: string; name: string; custom: boolean }[] }> {
+      const current = eventStore.get()
+      return {
+        current: current === 'auto' || findEvent(current) ? current : 'auto',
+        events: allEvents().map(({ id, name, custom }) => ({ id, name, custom }))
+      }
     },
 
+    /** 'auto' (detect from the photos) or an event type. */
     async setEvent(id: string): Promise<void> {
-      if (EVENT_TYPES.some((e) => e.id === id)) eventStore.set(id)
+      if (id === 'auto' || findEvent(id)) eventStore.set(id)
+    },
+
+    /** Makes a new event type of your own; returns its id. */
+    async createEvent(name: string): Promise<string> {
+      const clean = name.trim().slice(0, 60) || 'My event'
+      const id = `custom-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+      customEventsStore.set([...customEventsStore.get(), { id, name: clean }])
+      return id
+    },
+
+    async renameEvent(id: string, name: string): Promise<void> {
+      const clean = name.trim().slice(0, 60)
+      if (!clean) return
+      customEventsStore.set(customEventsStore.get().map((e) => (e.id === id ? { ...e, name: clean } : e)))
+    },
+
+    async deleteEvent(id: string): Promise<void> {
+      if (!customEventsStore.get().some((e) => e.id === id)) return
+      customEventsStore.set(customEventsStore.get().filter((e) => e.id !== id))
+      partsStore(id).set(null)
+      if (eventStore.get() === id) eventStore.set('auto')
     },
 
     async licence(): Promise<{ licensed: boolean; customerName?: string; key?: string }> {

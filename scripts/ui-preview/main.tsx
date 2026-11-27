@@ -13,7 +13,10 @@ let currentEvent = 'wedding'
   chooseFolder: async () => (location.search.includes('robyn') ? '/home/you/Pictures/Robyn & Gabriel' : location.search.includes('demo') ? '/home/you/Pictures/Smith wedding' : '/home/ben/Pictures/bakewell wedding'),
   sort: () =>
     new Promise((resolve) => {
-      if (!location.search.includes('slow')) return resolve(result)
+      const dyn = location.search.includes('moments')
+        ? { ...result, event: { id: 'wedding', name: 'Wedding', detected: true }, moments: [{ name: 'Sparkler exit', paths: result.photos.slice(-6).map((p: any) => p.path), afterPartId: result.photos.at(-7).partId }] }
+        : result
+      if (!location.search.includes('slow')) return resolve(dyn)
       let done = 0
       const t = setInterval(() => {
         done += Math.max(1, Math.round(data.photos.length / 30))
@@ -27,7 +30,11 @@ let currentEvent = 'wedding'
   recordCorrection: async () => {},
   save: async () => ({ written: data.photos.length, outDir: '/x/numbered' }),
   getParts: async () => EVENT_TYPES.find((e) => e.id === currentEvent)!.parts,
-  getEvents: async () => ({ current: currentEvent, events: EVENT_TYPES.map(({ id, name }) => ({ id, name })) }),
+  getEvents: async () => ({ current: 'auto', events: [...EVENT_TYPES.map(({ id, name }) => ({ id, name })), { id: 'custom-1', name: 'Bar mitzvah', custom: true }] }),
+  createEvent: async () => 'custom-2',
+  renameEvent: async () => {},
+  deleteEvent: async () => {},
+  resortAs: async () => ({ ...result, event: { id: 'corporate', name: 'Corporate event', detected: false } }),
   setEvent: async (id: string) => { currentEvent = id },
   getShortcuts: async () => ({}),
   setShortcuts: async () => {},
