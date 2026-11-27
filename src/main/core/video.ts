@@ -47,11 +47,13 @@ async function readSonyXml(path: string): Promise<VideoInfo | null> {
   if (created) info.startMs = wallClock(created)
   const fps = Number(attr('LtcChangeTable', 'tcFps')) || Number((attr('VideoFrame', 'formatFps') ?? '').replace(/[^\d.]/g, '')) || undefined
   if (fps) info.fps = fps
-  // LtcChange value is BCD, frames first: "FFSSMMHH" (the top bits of each byte can carry flags).
+  // LtcChange value is BCD, frames first: "FFSSMMHH". Frames and hours carry flags in their top two bits,
+  // seconds and minutes only in the top bit (their tens digit goes up to 5).
   const ltc = xml.match(/<LtcChange\b[^>]*\bframeCount="0"[^>]*\bvalue="([0-9A-Fa-f]{8})"/)?.[1]
   if (ltc) {
+    const masks = [0x3f, 0x7f, 0x7f, 0x3f]
     const byte = (i: number) => {
-      const b = parseInt(ltc.slice(i * 2, i * 2 + 2), 16) & 0x3f
+      const b = parseInt(ltc.slice(i * 2, i * 2 + 2), 16) & masks[i]
       return (b >> 4) * 10 + (b & 0x0f)
     }
     info.startTimecode = `${pad(byte(3))}:${pad(byte(2))}:${pad(byte(1))}:${pad(byte(0))}`

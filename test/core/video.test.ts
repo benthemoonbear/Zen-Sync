@@ -68,6 +68,13 @@ describe('reading video clips', () => {
     expect(v.serial).toBe('1234567')
   })
 
+  test('Sony timecode with 59 seconds and minutes reads right (the high flag bits are only on frames and hours)', async () => {
+    const dir = await tempDir('video')
+    await writeFile(join(dir, 'C0002.MP4'), 'x')
+    await writeFile(join(dir, 'C0002M01.XML'), '<NonRealTimeMeta><LtcChangeTable tcFps="25"><LtcChange frameCount="0" value="24595923" status="increment"/></LtcChangeTable></NonRealTimeMeta>')
+    expect((await readVideoInfo(join(dir, 'C0002.MP4'))).startTimecode).toBe('23:59:59:24')
+  })
+
   test('other cameras: timecode track and movie header', async () => {
     const dir = await tempDir('video')
     await writeFile(join(dir, 'A001.mov'), mp4(Date.UTC(2026, 6, 4, 13, 0, 0) / 1000, 10, { fps: 25, startFrame: 25 * 3600 * 13 + 25 * 60 }))

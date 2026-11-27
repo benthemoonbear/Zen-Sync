@@ -8,8 +8,8 @@
 <h3 align="center">Every camera, one day, in order.</h3>
 
 <p align="center">
-  A desktop app for wedding and event photographers. Zen Sync puts the finished photos from all your cameras
-  back into the order the day happened, then numbers them and files them into folders for you, entirely on your own computer.
+  A desktop app for wedding and event photographers and filmmakers. Zen Sync puts the finished photos and video clips
+  from all your cameras back into the order the day happened, then numbers them and files them into folders for you, entirely on your own computer.
 </p>
 
 <p align="center">
@@ -44,6 +44,8 @@ So you end up dragging hundreds of photos into order by eye, then renaming them 
 - **Anyone delivering a wedding as one numbered set:** galleries, albums, USB deliveries and slideshows all read better in order.
 - **Photographers who care where their clients' photos go.** Zen Sync never uploads anything.
 
+- **Photo and video teams:** video clips from the same day are placed in order alongside the photos, with timecode lists ready for Premiere or DaVinci Resolve.
+
 It works on finished JPEG exports, not RAW files, so it fits in after your edit and before delivery.
 
 ## How it works
@@ -52,11 +54,11 @@ It works on finished JPEG exports, not RAW files, so it fits in after your edit 
   <img src="docs/images/sorting.png" alt="The ensō logo filling with gold while Zen Sync analyses the photos" width="440">
 </p>
 
-1. **Choose the type of event** (wedding, corporate event, party or birthday, christening or engagement shoot) and **drop in the job's folder.** Photos inside sub-folders are found too, so a folder with `Camera A/` and `Camera B/` inside is sorted as one day.
+1. **Drop in the job's folder**, or send photos straight from your editor (see below). Photos and video clips inside sub-folders are found too, so a folder with `Camera A/`, `Camera B/` and `Video/` inside is sorted as one day. Zen Sync **works out what kind of event it is** (wedding, corporate event, party or birthday, christening or engagement shoot), or you can choose one yourself.
 2. **Zen Sync looks at every photo** and recognises the parts of the day. For a wedding that's getting ready, details, arrival, ceremony, signing, confetti, drinks, groups, couple portraits, breakfast, speeches, cake, first dance and the evening; a corporate event runs from registration through talks, panels, workshops, networking and headshots to awards and dinner.
 3. **It lines the cameras up.** If one camera's clock was wrong, it spots the same moment shot by two cameras and offers to correct it: *"A7R II clock looks 8h 35m slow — Fix?"* Cameras with no timestamps at all are slotted in by matching what's in the pictures.
-4. **You check the order** on a timeline of the whole day. Photos it isn't sure about are outlined in amber, and **Next unsure** takes you straight to them.
-5. **Fix anything by drag and drop:** move a photo, drop it onto a different part of the day, or drag a whole section (say, portraits before confetti). You can also press keys 1–9 to send a photo to a part.
+4. **You check the order** on a timeline of the whole day. Photos it isn't sure about are outlined in amber, and **Next unsure** takes you straight to them. If it spots a moment that isn't on your list, such as a sparkler exit or a surprise performance, it offers to add it as a new part.
+5. **Fix anything by drag and drop:** select many photos at once (drag a box, Shift-click, Ctrl/Cmd-click or Ctrl/Cmd+A) and move them together, drop them onto a different part of the day, or drag a whole section (say, portraits before confetti). Arrow keys move through the photos and keys 1–9 send them to a part; every shortcut can be changed in Settings.
 6. **Save numbered copies**, either as one folder (`1.jpg`, `2.jpg`, …) or as folders and sub-folders for each part of the day, with the numbering running on through the whole day:
 
    ```
@@ -67,9 +69,34 @@ It works on finished JPEG exports, not RAW files, so it fits in after your edit 
      04 Evening/    01 First dance, 02 Evening party
    ```
 
+   Video clips go into the same folders as `V001.mp4`, `V002.mp4`… in day order, and a `Timecode` folder holds an EDL of the day for Premiere or Resolve, part-of-day markers for Resolve and a CSV.
+
+7. **Keep the job in sync.** Turn on **Keep in sync** and any photos or clips added to the folder later are put in their place and the numbered copies updated in the background, even with the window closed (Zen Sync waits in the system tray).
+
 <p align="center">
   <img src="docs/images/save.png" alt="The save window: one folder, or a folder per part of the day" width="760">
 </p>
+
+## Works with your editor
+
+Send photos to Zen Sync straight from the app you edit in, and it sorts just the photos you sent:
+
+- **Lightroom Classic:** export with *After Export → Zen Sync* (set it up in one click from **Settings → Editors**).
+- **Capture One:** *Open With → Zen Sync* in your export recipe.
+- **DxO PhotoLab:** *Export to Application → Zen Sync*.
+- **ON1 Photo RAW:** *Send to Other Application → Zen Sync*.
+- **darktable:** a *Zen Sync* export target, installed from **Settings → Editors**.
+- **Anything else:** choose a watch folder, and whatever lands in it is sorted automatically.
+
+## Video and timecode
+
+Drop in a folder with video clips (MP4, MOV, MXF, MTS and more) and Zen Sync reads each clip's start time, length, frame rate and timecode. On Sony cameras it uses the XML file the camera writes beside each clip, which holds the real timecode. Each clip joins the part of the day of the photo nearest to it in time.
+
+When you save, clips are placed among the photos and numbered `V001`, `V002`… in day order. On the same drive they're linked rather than copied, so even hundreds of gigabytes of footage are saved instantly and take no extra space. Alongside them, `numbered/Timecode` holds:
+
+- **Day order.edl:** every clip end to end in the order the day happened, with each clip's own timecode. Import it as a timeline in Premiere Pro or DaVinci Resolve and link the media.
+- **Part markers (Resolve).edl:** a coloured marker where each part of the day starts. In Resolve: *Timelines → Import → Timeline Markers from EDL*.
+- **Day order.csv:** every clip with its part of the day, time of day, source timecode, length and timeline position.
 
 ## What makes it different
 
@@ -77,7 +104,7 @@ It works on finished JPEG exports, not RAW files, so it fits in after your edit 
 - **Your originals are never touched.** Zen Sync only ever writes *copies* into a new `numbered` folder. The copies are byte-for-byte identical to your exports, so quality and metadata stay exactly as they were.
 - **Copes with real-world clocks.** It handles wrong clocks, reset clocks and stripped timestamps.
 - **Learns your style.** When you move a photo to a different part of the day, Zen Sync remembers, and gets that kind of shot right next time. That memory stays on your computer too.
-- **Your running order, not ours.** Rename, reorder, add or remove the parts of the day in Settings, and choose which folder each part is saved in. Each type of event keeps its own list. Parts you add are recognised from their name, so a part called "Sparklers" finds the sparkler shots.
+- **Your running order, not ours.** Rename, reorder, add or remove the parts of the day in Settings, and choose which folder each part is saved in. Each type of event keeps its own list, and you can make your own event types (say, "Bar mitzvah" or "Product launch"). Parts you add are recognised from their name, so a part called "Sparklers" finds the sparkler shots.
 - **Runs on an ordinary laptop.** No graphics card needed.
 
 ## Free and full version
@@ -86,7 +113,10 @@ It works on finished JPEG exports, not RAW files, so it fits in after your edit 
 |---|---|---|
 | Sort, preview and fix any size of wedding | ✓ | ✓ |
 | Camera clock fixes | ✓ | ✓ |
-| Save as one numbered folder | up to 250 photos | any size |
+| Video clips in day order, timecode lists for editing | ✓ | ✓ |
+| Send from Lightroom, Capture One and other editors | ✓ | ✓ |
+| Keep jobs in sync in the background | ✓ | ✓ |
+| Save as one numbered folder | up to 250 photos (video clips don't count) | any size |
 | Save as folders and sub-folders per part of the day | — | ✓ |
 
 No subscription. You can try it on your own wedding first and see the whole day sorted before you pay. Buy inside the app (secure checkout by Stripe) and it unlocks as soon as you've paid; you also get a licence key for your second computer. Activation needs the internet once, and after that it works offline.
@@ -95,13 +125,13 @@ No subscription. You can try it on your own wedding first and see the whole day 
 
 | Platform | File |
 |---|---|
-| **Windows 10 / 11** | `Zen-Sync-Setup-0.3.0.exe`: installs for your user account, no admin rights needed |
-| **Linux** | `Zen-Sync-0.3.0.AppImage`: make it executable, then double-click. Or `Zen-Sync-0.3.0.flatpak`: `flatpak install --user Zen-Sync-0.3.0.flatpak` |
+| **Windows 10 / 11** | `Zen-Sync-Setup-0.4.0.exe`: installs for your user account, no admin rights needed |
+| **Linux** | `Zen-Sync-0.4.0.AppImage`: make it executable, then double-click. Or `Zen-Sync-0.4.0.flatpak`: `flatpak install --user Zen-Sync-0.4.0.flatpak` |
 | **macOS** | Coming soon |
 
 Downloads are on the [latest release](../../releases/latest) page.
 
-**The first time you sort a folder,** Zen Sync downloads its photo-recognition model (about 400 MB, one time only). After that it works completely offline.
+**The first time you sort a folder,** Zen Sync downloads its photo-recognition model (about 950 MB, one time only). After that it works completely offline.
 
 **Windows SmartScreen:** early versions aren't code-signed yet, so Windows may say *"Windows protected your PC"*. Click **More info**, then **Run anyway**.
 
@@ -109,7 +139,7 @@ Downloads are on the [latest release](../../releases/latest) page.
 
 - Windows 10/11 (64-bit) or a modern 64-bit Linux
 - 8 GB of RAM or more
-- About 1.5 GB of free disk space for the app and model
+- About 2 GB of free disk space for the app and model
 - An internet connection the first time you sort (to download the model) and to activate a licence
 
 ## Questions
@@ -133,7 +163,13 @@ No. Drop in the top folder and Zen Sync finds the photos in every sub-folder. It
 Open **Settings → Unlock → I already bought it** and enter your key. Each key works on two computers.
 
 **Does it work with RAW files?**
-Not in version 1. It's built for your finished JPEG exports.
+Not yet. It's built for your finished JPEG exports.
+
+**Does it sort video too?**
+Yes. Video clips in the folder are put in day order with the photos by their start time, and saved alongside them with timecode lists for Premiere and Resolve. If your video camera's clock was set differently from your photo cameras, the clips will be placed by its clock, so set it right on the day.
+
+**Can I add photos after I've saved?**
+Yes. With **Keep in sync** on, photos and clips added to the folder later are slotted into place and the numbered copies updated automatically. Turn it off for a job in **Settings → Synced jobs**.
 
 **Does it pick or cull my best shots?**
 No. It only puts the photos you've already chosen into order and numbers them.
@@ -146,13 +182,13 @@ No. The only things Zen Sync ever downloads are the photo model (once) and your 
 
 ## Status
 
-Zen Sync is at **version 0.3**, built by [Zen Visuals](https://zenvisuals.co.uk), a UK wedding and commercial photo and video studio, to solve our own post-production problem. Feedback from fellow photographers is very welcome: please [open an issue](../../issues).
+Zen Sync is at **version 0.4**, built by [Zen Visuals](https://zenvisuals.co.uk), a UK wedding and commercial photo and video studio, to solve our own post-production problem. Feedback from fellow photographers is very welcome: please [open an issue](../../issues).
 
 ---
 
 <sub>
 For developers: building, testing and releasing are covered in <a href="docs/DEVELOPING.md">docs/DEVELOPING.md</a>.
-Photo recognition uses Google's <a href="https://huggingface.co/google/siglip-base-patch16-224">SigLIP</a> model (Apache 2.0), run locally with <a href="https://github.com/huggingface/transformers.js">Transformers.js</a>.
+Photo recognition uses Google's <a href="https://huggingface.co/google/siglip2-base-patch16-224">SigLIP 2</a> model (Apache 2.0), run locally with <a href="https://github.com/huggingface/transformers.js">Transformers.js</a>.
 The wordmark is set in <a href="https://rsms.me/inter/">Inter</a> (SIL Open Font Licence).
 Screenshots show Robyn &amp; Gabriel's wedding, photographed by Zen Visuals.
 © 2026 Zen Visuals. All rights reserved.
