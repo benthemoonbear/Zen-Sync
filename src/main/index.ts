@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell } from 'electron'
-import { rm, symlink } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { readFile, rm, symlink } from 'node:fs/promises'
 import { homedir, hostname } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -8,7 +9,9 @@ import { createHandlers, type Handlers } from './ipc'
 import { makeThumb, parseThumbUrl } from './thumbs'
 import { INVOKE_METHODS } from '../shared/api'
 import { PAYMENTS } from './payments-config'
-import { createExportCollector, exportActionsDir, newestJpegChange, pathsFromArgv } from './core/lightroom'
+import {
+  createExportCollector, darktableConfigDir, exportActionsDir, installDarktable, newestJpegChange, pathsFromArgv, watchFolder
+} from './core/lightroom'
 import { EVENTS } from '../shared/api'
 
 protocol.registerSchemesAsPrivileged([
@@ -22,18 +25,18 @@ let win: BrowserWindow | null = null
 if (!app.requestSingleInstanceLock()) app.quit()
 
 /** A finished export waiting for the window to be ready, and whether the window is listening yet. */
-let launchFolder: string | null = null
+let launchFolder: { dir: string; photos: string[] } | null = null
 let rendererListening = false
 const exportCollector = createExportCollector({
   quietMs: 2000,
   settleMs: 1500,
   newestChangeMs: newestJpegChange,
-  onReady: (folder) => {
+  onReady: (dir, photos) => {
     if (win && rendererListening) {
-      win.webContents.send(EVENTS.openFolder, folder)
+      win.webContents.send(EVENTS.openFolder, { dir, photos })
       if (win.isMinimized()) win.restore()
       win.focus()
-    } else launchFolder = folder
+    } else launchFolder = { dir, photos }
   }
 })
 const receive = (argv: string[]) => {
@@ -53,6 +56,41 @@ app.on('open-file', (e, path) => {
   e.preventDefault()
   exportCollector.add([path])
 })
+
+/** Where this copy of Zen Sync is: the AppImage, the .app bundle, or the .exe. */
+function appLocation(): string {
+  if (process.env.APPIMAGE) return process.env.APPIMAGE
+  if (process.platform === 'darwin') return resolve(process.execPath, '../../..')
+  return process.execPath
+}
+
+/** darktable: offered where darktable has been run (its settings folder exists) and Zen Sync can be launched from it. */
+function darktableDeps() {
+  if (process.env.FLATPAK_ID) return undefined // a sandboxed Zen Sync can't be launched from darktable directly
+  const config = darktableConfigDir(process.platform, process.env, homedir())
+  if (!existsSync(config)) return undefined
+  return {
+    install: async () => {
+      const script = app.isPackaged
+        ? join(process.resourcesPath, 'darktable', 'zen_sync.lua')
+        : join(app.getAppPath(), 'integrations', 'darktable', 'zen_sync.lua')
+      await installDarktable(config, appLocation(), await readFile(script, 'utf8'))
+    }
+  }
+}
+
+/** The folder being watched for exports from any editor, if one is set. */
+let stopWatching: (() => void) | null = null
+function startWatching(dir: string | null) {
+  stopWatching?.()
+  stopWatching = null
+  if (!dir || !existsSync(dir)) return
+  try {
+    stopWatching = watchFolder(dir, (paths) => exportCollector.add(paths, []))
+  } catch (e) {
+    console.error('Could not watch folder:', e)
+  }
+}
 
 /** Puts Zen Sync in Lightroom Classic's After Export menu: a shortcut (Windows) or an alias to the app (Mac). */
 function lightroomDeps() {
@@ -173,6 +211,9 @@ app.whenReady().then(() => {
     openCheckout,
     emit: (channel, payload) => win?.webContents.send(channel, payload),
     lightroom: lightroomDeps(),
+    darktable: darktableDeps(),
+    appLocation: appLocation(),
+    watchFolderChanged: startWatching,
     takeLaunchFolder: () => {
       rendererListening = true
       const f = launchFolder
@@ -181,6 +222,7 @@ app.whenReady().then(() => {
     }
   })
   register(handlers)
+  void handlers.getWatchFolder().then(startWatching)
   createWindow()
 })
 

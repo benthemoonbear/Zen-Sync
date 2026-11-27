@@ -21,8 +21,8 @@ export function LightroomPanel() {
     return (
       <div className="lightroom">
         <p>
-          Lightroom Classic runs on Windows and Mac. On those computers, Zen Sync can sort photos the moment Lightroom
-          finishes exporting them. Here, export your JPEGs to a folder and drop that folder onto Zen Sync.
+          Lightroom Classic runs on Windows and Mac. On those computers Zen Sync can sort photos the moment Lightroom
+          finishes exporting them. Here, use “Any other app” to watch your export folder, or drop the folder onto Zen Sync.
         </p>
       </div>
     )

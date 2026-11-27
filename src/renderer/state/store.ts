@@ -14,9 +14,10 @@ export interface AppState {
   /** Where a Shift-click or Shift+arrow range starts */
   anchor: string | null
   /** A folder (e.g. from Lightroom) the start screen should sort next */
-  incoming: string | null
-  openFolder(dir: string): void
-  takeIncoming(): string | null
+  incoming: { dir: string; photos: string[] } | null
+  /** Sort this folder next; `photos` limits it to the photos an editor sent */
+  openFolder(dir: string, photos?: string[]): void
+  takeIncoming(): { dir: string; photos: string[] } | null
   edited: boolean
   load(dir: string, result: SortResult): void
   replaceResult(result: SortResult): void
@@ -125,11 +126,11 @@ export function createAppStore(deps: StoreDeps) {
         const path = nextUnsure(get().photos, get().current)
         if (path) set({ current: path, selected: [path], anchor: path })
       },
-      openFolder: (dir) => set({ ...empty, incoming: dir }),
+      openFolder: (dir, photos = []) => set({ ...empty, incoming: { dir, photos } }),
       takeIncoming: () => {
-        const dir = get().incoming
-        if (dir) set({ incoming: null })
-        return dir
+        const sent = get().incoming
+        if (sent) set({ incoming: null })
+        return sent
       },
       reset: () => set(empty)
     }

@@ -1,6 +1,6 @@
-import { existsSync, statSync } from 'node:fs'
-import { readdir, stat } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
+import { existsSync, statSync, watch } from 'node:fs'
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 
 const JPEG = /\.jpe?g$/i
 
@@ -52,7 +52,8 @@ export interface CollectorOptions {
   /** How long the folder's files must have been unchanged */
   settleMs: number
   newestChangeMs(folder: string): Promise<number>
-  onReady(folder: string, photoCount: number): void
+  /** The export folder and the photos sent from it (empty when a whole folder was sent) */
+  onReady(folder: string, photos: string[]): void
   now?(): number
 }
 
@@ -72,15 +73,16 @@ export function createExportCollector(o: CollectorOptions) {
     const counts = new Map<string, number>()
     for (const f of files) counts.set(dirname(f), (counts.get(dirname(f)) ?? 0) + 1)
     for (const d of folders) if (!counts.has(d)) counts.set(d, 0)
-    const [folder, count] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0] ?? []
+    const [folder] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0] ?? []
     if (!folder) return
     if ((await o.newestChangeMs(folder)) > now() - o.settleMs) {
       timer = setTimeout(() => void check(), o.quietMs)
       return
     }
+    const sent = folders.includes(folder) ? [] : [...new Set(files.filter((f) => dirname(f) === folder))]
     files = []
     folders = []
-    o.onReady(folder, count ?? 0)
+    o.onReady(folder, sent)
   }
 
   return {
@@ -93,5 +95,51 @@ export function createExportCollector(o: CollectorOptions) {
       if (timer) clearTimeout(timer)
       timer = setTimeout(() => void check(), o.quietMs)
     }
+  }
+}
+
+const OWN_OUTPUT = /^numbered(\.(tmp|old)-[0-9a-f]+)?$/i
+
+/** A new file in a watched folder that should count as an export: a JPEG, not hidden, not Zen Sync's own output. */
+export function isWatchedPhoto(root: string, path: string): boolean {
+  const rel = relative(root, path)
+  if (!rel || rel.startsWith('..') || isAbsolute(rel)) return false
+  const parts = rel.split(/[\\/]/)
+  if (parts.some((p) => p.startsWith('.') || OWN_OUTPUT.test(p))) return false
+  return JPEG.test(path)
+}
+
+/**
+ * Watches a folder (and its sub-folders) for exported JPEGs from any editor and reports their paths.
+ * Pair it with createExportCollector to wait for each export to finish. Returns a function that stops watching.
+ */
+export function watchFolder(root: string, onPhotos: (paths: string[]) => void): () => void {
+  const watcher = watch(root, { recursive: true }, (_event, name) => {
+    if (!name) return
+    const path = join(root, name.toString())
+    if (isWatchedPhoto(root, path) && existsSync(path)) onPhotos([path])
+  })
+  watcher.on('error', () => {})
+  return () => watcher.close()
+}
+
+/** darktable's settings folder (where luarc and the lua/ scripts folder live). */
+export function darktableConfigDir(platform: NodeJS.Platform, env: Record<string, string | undefined>, home: string): string {
+  if (platform === 'win32') return join(env.LOCALAPPDATA ?? join(home, 'AppData', 'Local'), 'darktable')
+  return join(home, '.config', 'darktable')
+}
+
+/**
+ * Installs the Zen Sync export destination into darktable: writes lua/zen_sync.lua pointing at this copy of
+ * Zen Sync and makes darktable load it at start-up (once).
+ */
+export async function installDarktable(configDir: string, appPath: string, script: string): Promise<void> {
+  const luaString = appPath.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+  await mkdir(join(configDir, 'lua'), { recursive: true })
+  await writeFile(join(configDir, 'lua', 'zen_sync.lua'), script.replace('__ZEN_SYNC_APP__', () => luaString))
+  const luarc = join(configDir, 'luarc')
+  const current = existsSync(luarc) ? await readFile(luarc, 'utf8') : ''
+  if (!/^\s*require\s*\(?\s*["']zen_sync["']/m.test(current)) {
+    await writeFile(luarc, `${current}${current && !current.endsWith('\n') ? '\n' : ''}require "zen_sync"\n`)
   }
 }

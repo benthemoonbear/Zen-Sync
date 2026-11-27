@@ -30,12 +30,12 @@ export function DropScreen() {
     }
   }, [])
 
-  async function sort(dir: string) {
+  async function sort(dir: string, only?: string[]) {
     setBusy(true)
     setError(null)
     setProgress(null)
     try {
-      const result = await window.api.sort(dir)
+      const result = only?.length ? await window.api.sort(dir, only) : await window.api.sort(dir)
       if (!result.photos.length) {
         setError('No JPEG photos were found in that folder or its sub-folders.')
         return
@@ -59,8 +59,8 @@ export function DropScreen() {
   const incoming = useApp((s) => s.incoming)
   useEffect(() => {
     if (!incoming || busy) return
-    const dir = appStore().getState().takeIncoming()
-    if (dir) void sort(dir)
+    const sent = appStore().getState().takeIncoming()
+    if (sent) void sort(sent.dir, sent.photos)
   }, [incoming, busy])
 
   async function choose() {

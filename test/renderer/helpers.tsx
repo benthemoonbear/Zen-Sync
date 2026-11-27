@@ -25,7 +25,7 @@ export function sampleResult(): SortResult {
 }
 
 export function mockApi(overrides: Partial<Api> = {}) {
-  const listeners: { progress?: (p: Progress) => void; download?: (n: number) => void; openFolder?: (dir: string) => void } = {}
+  const listeners: { progress?: (p: Progress) => void; download?: (n: number) => void; openFolder?: (sent: { dir: string; photos: string[] }) => void } = {}
   const api: Api = {
     chooseFolder: vi.fn(async () => '/w/bakewell wedding'),
     sort: vi.fn(async () => sampleResult()),
@@ -35,6 +35,12 @@ export function mockApi(overrides: Partial<Api> = {}) {
     takeLaunchFolder: vi.fn(async () => null),
     lightroomStatus: vi.fn(async () => ({ supported: false, installed: false })),
     addToLightroom: vi.fn(async () => ({ ok: true as const })),
+    getWatchFolder: vi.fn(async () => null),
+    chooseWatchFolder: vi.fn(async () => '/w/Exports'),
+    clearWatchFolder: vi.fn(async () => {}),
+    appLocation: vi.fn(async () => 'C:\\Users\\Ben\\Zen Sync\\Zen Sync.exe'),
+    darktableSupported: vi.fn(async () => false),
+    addToDarktable: vi.fn(async () => ({ ok: true as const })),
     applyClockFix: vi.fn(async () => ({ ...sampleResult(), clock: [] })),
     recordCorrection: vi.fn(async () => {}),
     save: vi.fn(async () => ({ written: 124, outDir: '/w/bakewell wedding/numbered' })),

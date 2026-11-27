@@ -15,6 +15,8 @@ export interface SortDeps {
   parts: Part[]
   corrections?: CorrectionSet
   onProgress?: (stage: Stage, done: number, total: number) => void
+  /** Sort only these photos in the folder (e.g. the ones an editor just exported) */
+  only?: string[]
 }
 
 /** Everything the app keeps from a sort so it can re-merge (clock fixes) and learn (corrections). */
@@ -60,6 +62,11 @@ export async function runSort(dir: string, deps: SortDeps): Promise<SortSession>
   const { embedder, parts, onProgress } = deps
   onProgress?.('scan', 0, 1)
   const scanned = await scanFolder(dir)
+  if (deps.only) {
+    const keep = new Set(deps.only)
+    scanned.photos = scanned.photos.filter((p) => keep.has(p.path))
+    scanned.skipped = []
+  }
   onProgress?.('scan', 1, 1)
 
   const { embs, failed } = await embedAll(scanned.photos, embedder, (d, t) => onProgress?.('analyse', d, t))

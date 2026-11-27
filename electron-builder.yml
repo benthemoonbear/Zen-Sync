@@ -9,6 +9,9 @@ directories:
 files:
   - out/**
   - package.json
+extraResources:
+  - from: integrations/darktable/zen_sync.lua
+    to: darktable/zen_sync.lua
 asarUnpack:
   - node_modules/sharp/**
   - node_modules/@img/**

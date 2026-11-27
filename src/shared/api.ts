@@ -20,7 +20,7 @@ export type SaveResponse = { written: number; outDir: string } | { exists: true 
 
 export interface Api {
   chooseFolder(): Promise<string | null>
-  sort(dir: string): Promise<SortResult>
+  sort(dir: string, only?: string[]): Promise<SortResult>
   onProgress(cb: (p: Progress) => void): () => void
   onModelDownload(cb: (pct: number) => void): () => void
   applyClockFix(cameraId: string): Promise<SortResult>
@@ -39,9 +39,15 @@ export interface Api {
   showFolder(path: string): Promise<void>
   lightroomStatus(): Promise<{ supported: boolean; installed: boolean }>
   addToLightroom(): Promise<{ ok: true } | { ok: false; message: string }>
-  takeLaunchFolder(): Promise<string | null>
+  getWatchFolder(): Promise<string | null>
+  chooseWatchFolder(): Promise<string | null>
+  clearWatchFolder(): Promise<void>
+  appLocation(): Promise<string>
+  darktableSupported(): Promise<boolean>
+  addToDarktable(): Promise<{ ok: true } | { ok: false; message: string }>
+  takeLaunchFolder(): Promise<{ dir: string; photos: string[] } | null>
   /** A folder of photos sent from Lightroom while the app is open */
-  onOpenFolder(cb: (dir: string) => void): () => void
+  onOpenFolder(cb: (sent: { dir: string; photos: string[] }) => void): () => void
   pathForFile(file: File): string
 }
 
@@ -49,7 +55,8 @@ export interface Api {
 export const INVOKE_METHODS = [
   'chooseFolder', 'sort', 'applyClockFix', 'recordCorrection', 'save', 'getParts', 'setParts',
   'getEvents', 'setEvent', 'getShortcuts', 'setShortcuts', 'licence', 'activate', 'deactivate', 'buy', 'showFolder',
-  'lightroomStatus', 'addToLightroom', 'takeLaunchFolder'
+  'lightroomStatus', 'addToLightroom', 'takeLaunchFolder',
+  'getWatchFolder', 'chooseWatchFolder', 'clearWatchFolder', 'appLocation', 'darktableSupported', 'addToDarktable'
 ] as const
 
 export type InvokeMethod = (typeof INVOKE_METHODS)[number]

@@ -7,7 +7,7 @@ import { UnlockPanel } from './UnlockDialog'
 import { partColour } from '../format'
 import { EventPicker } from './EventPicker'
 import { ShortcutsPanel } from './ShortcutsPanel'
-import { LightroomPanel } from './LightroomPanel'
+import { EditorsPanel } from './EditorsPanel'
 import { useShortcuts } from '../state/shortcuts'
 import type { ShortcutMap } from '../shortcuts'
 
@@ -35,7 +35,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const [licence, setLicence] = useState<{ licensed: boolean; customerName?: string; key?: string } | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [unlocking, setUnlocking] = useState(false)
-  const [tab, setTab] = useState<'parts' | 'shortcuts' | 'lightroom'>('parts')
+  const [tab, setTab] = useState<'parts' | 'shortcuts' | 'editors'>('parts')
   const [shortcuts, setShortcuts] = useState<ShortcutMap>(useShortcuts.getState().map)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
 
@@ -90,9 +90,9 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
         <div className="tabs" role="tablist">
           <button role="tab" aria-selected={tab === 'parts'} className={tab === 'parts' ? 'on' : ''} onClick={() => setTab('parts')}>Parts of the day</button>
           <button role="tab" aria-selected={tab === 'shortcuts'} className={tab === 'shortcuts' ? 'on' : ''} onClick={() => setTab('shortcuts')}>Shortcuts</button>
-          <button role="tab" aria-selected={tab === 'lightroom'} className={tab === 'lightroom' ? 'on' : ''} onClick={() => setTab('lightroom')}>Lightroom</button>
+          <button role="tab" aria-selected={tab === 'editors'} className={tab === 'editors' ? 'on' : ''} onClick={() => setTab('editors')}>Editors</button>
         </div>
-        {tab === 'lightroom' ? <LightroomPanel /> : tab === 'shortcuts' ? <ShortcutsPanel map={shortcuts} onChange={setShortcuts} /> : <>
+        {tab === 'editors' ? <EditorsPanel /> : tab === 'shortcuts' ? <ShortcutsPanel map={shortcuts} onChange={setShortcuts} /> : <>
         <EventPicker onChanged={loadParts} />
         <p>Parts of the day, in order. Drag to reorder. Give parts the same folder to save them as sub-folders inside it. Changes apply the next time you sort a folder.</p>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>

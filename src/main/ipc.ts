@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 import { addCorrection, type CorrectionSet } from './core/corrections'
 import type { Embedder } from './core/embed'
 import { activate, canSave, claimPurchase, deactivate, isLicensed, type LicenceState } from './core/licence'
@@ -30,10 +30,17 @@ export interface HandlerDeps {
   /** Lightroom Classic's Export Actions folder and how to put Zen Sync in it (absent where Lightroom Classic doesn't run) */
   lightroom?: { actionsDir: string; fileName: string; install(file: string): Promise<void> }
   /** A folder sent from Lightroom (or the command line) before the window was ready */
-  takeLaunchFolder?(): string | null
+  takeLaunchFolder?(): { dir: string; photos: string[] } | null
+  /** Called when the watched folder is chosen or cleared, so the app can (re)start watching */
+  watchFolderChanged?(dir: string | null): void
+  /** Where Zen Sync is installed (the .exe, .app or AppImage), for editors' "browse to application" boxes */
+  appLocation?: string
+  /** darktable integration: installs Zen Sync as an export destination (absent where darktable isn't set up) */
+  darktable?: { install(): Promise<void> }
 }
 
 export function createHandlers(deps: HandlerDeps) {
+  const watchStore = createStore<string | null>(join(deps.userData, 'watch-folder.json'), null)
   const shortcutsStore = createStore<Record<string, string>>(join(deps.userData, 'shortcuts.json'), {})
   const eventStore = createStore<string>(join(deps.userData, 'event.json'), DEFAULT_EVENT)
   const currentEvent = () => eventById(eventStore.get())
@@ -63,7 +70,8 @@ export function createHandlers(deps: HandlerDeps) {
   return {
     chooseFolder: () => deps.chooseFolder(),
 
-    async sort(dir: string): Promise<SortResult> {
+    /** Sorts a folder, or only the listed photos in it (those an editor sent). */
+    async sort(dir: string, only?: string[]): Promise<SortResult> {
       let model: Embedder
       try {
         model = await getEmbedder()
@@ -75,6 +83,7 @@ export function createHandlers(deps: HandlerDeps) {
         embedder: model,
         parts: partsForSort(loadParts()),
         corrections: correctionsStore.get(),
+        only: only?.length ? only.map((p) => resolve(p)).filter((p) => p.startsWith(resolve(dir) + sep)) : undefined,
         onProgress: (stage, done, total) => deps.emit(EVENTS.progress, { stage, done, total })
       })
       allowed = new Set(session.result.photos.map((p) => resolve(p.path)))
@@ -137,7 +146,42 @@ export function createHandlers(deps: HandlerDeps) {
       }
     },
 
-    async takeLaunchFolder(): Promise<string | null> {
+    async getWatchFolder(): Promise<string | null> {
+      return watchStore.get()
+    },
+
+    async chooseWatchFolder(): Promise<string | null> {
+      const dir = await deps.chooseFolder()
+      if (!dir) return watchStore.get()
+      watchStore.set(dir)
+      deps.watchFolderChanged?.(dir)
+      return dir
+    },
+
+    async clearWatchFolder(): Promise<void> {
+      watchStore.set(null)
+      deps.watchFolderChanged?.(null)
+    },
+
+    async appLocation(): Promise<string> {
+      return deps.appLocation ?? ''
+    },
+
+    async darktableSupported(): Promise<boolean> {
+      return !!deps.darktable
+    },
+
+    async addToDarktable(): Promise<{ ok: true } | { ok: false; message: string }> {
+      if (!deps.darktable) return { ok: false, message: "darktable isn't set up on this computer." }
+      try {
+        await deps.darktable.install()
+        return { ok: true }
+      } catch (e) {
+        return { ok: false, message: `Couldn't add Zen Sync to darktable (${(e as Error).message}).` }
+      }
+    },
+
+    async takeLaunchFolder(): Promise<{ dir: string; photos: string[] } | null> {
       return deps.takeLaunchFolder?.() ?? null
     },
 

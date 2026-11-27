@@ -117,10 +117,38 @@ describe('ipc handlers', () => {
   })
 
   test('a folder Lightroom sent before the window was ready is handed over once', async () => {
-    let pending: string | null = '/x/export'
+    let pending: { dir: string; photos: string[] } | null = { dir: '/x/export', photos: [] }
     const { h } = await setup(1, { takeLaunchFolder: () => { const p = pending; pending = null; return p } })
-    expect(await h.takeLaunchFolder()).toBe('/x/export')
+    expect(await h.takeLaunchFolder()).toEqual({ dir: '/x/export', photos: [] })
     expect(await h.takeLaunchFolder()).toBeNull()
+  })
+
+  test('sorting only the photos an editor sent, not everything else in that folder', async () => {
+    const { h, dir } = await setup(4)
+    const r = await h.sort(dir, [join(dir, 'IMG0002.jpg'), join(dir, 'IMG0003.jpg')])
+    expect(r.photos.map((p) => p.name).sort()).toEqual(['IMG0002.jpg', 'IMG0003.jpg'])
+  })
+
+  test('photos outside the folder are ignored when sorting only some', async () => {
+    const { h, dir } = await setup(2)
+    const r = await h.sort(dir, ['/etc/passwd', join(dir, 'IMG0001.jpg')])
+    expect(r.photos.map((p) => p.name)).toEqual(['IMG0001.jpg'])
+  })
+
+  test('a watch folder is chosen, remembered and cleared, and the app is told each time', async () => {
+    const changes: (string | null)[] = []
+    const { h, dir } = await setup(1, { watchFolderChanged: (d) => changes.push(d) })
+    expect(await h.getWatchFolder()).toBeNull()
+    expect(await h.chooseWatchFolder()).toBe(dir)
+    expect(await h.getWatchFolder()).toBe(dir)
+    await h.clearWatchFolder()
+    expect(await h.getWatchFolder()).toBeNull()
+    expect(changes).toEqual([dir, null])
+  })
+
+  test('the app can tell you where Zen Sync is installed, for editors that ask you to browse to it', async () => {
+    const { h } = await setup(1, { appLocation: '/opt/Zen Sync/Zen-Sync.AppImage' })
+    expect(await h.appLocation()).toBe('/opt/Zen Sync/Zen-Sync.AppImage')
   })
 
   test('custom keyboard shortcuts are saved and loaded', async () => {

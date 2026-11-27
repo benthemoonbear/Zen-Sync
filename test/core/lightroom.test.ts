@@ -47,7 +47,7 @@ describe('waiting for a Lightroom export to finish', () => {
     expect(onReady).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(600)
     expect(onReady).toHaveBeenCalledTimes(1)
-    expect(onReady).toHaveBeenCalledWith('/x/export', 3)
+    expect(onReady).toHaveBeenCalledWith('/x/export', ['/x/export/1.jpg', '/x/export/2.jpg', '/x/export/3.jpg'])
   })
 
   test('waits while files in the folder are still being written', async () => {
@@ -58,21 +58,29 @@ describe('waiting for a Lightroom export to finish', () => {
     expect(onReady).not.toHaveBeenCalled()
     newest = 0
     await vi.advanceTimersByTimeAsync(2100)
-    expect(onReady).toHaveBeenCalledWith('/x/export', 1)
+    expect(onReady).toHaveBeenCalledWith('/x/export', ['/x/export/1.jpg'])
   })
 
   test('a folder sent directly is sorted as it is', async () => {
     const { c, onReady } = setup()
     c.add(['/x/job'], ['/x/job'])
     await vi.advanceTimersByTimeAsync(2100)
-    expect(onReady).toHaveBeenCalledWith('/x/job', 0)
+    expect(onReady).toHaveBeenCalledWith('/x/job', [])
   })
 
   test('if photos come from more than one folder, the folder with most of them wins', async () => {
     const { c, onReady } = setup()
     c.add(['/a/1.jpg', '/b/1.jpg', '/b/2.jpg'])
     await vi.advanceTimersByTimeAsync(2100)
-    expect(onReady).toHaveBeenCalledWith('/b', 2)
+    expect(onReady).toHaveBeenCalledWith('/b', ['/b/1.jpg', '/b/2.jpg'])
+  })
+
+  test('the same photo sent twice (Capture One sends one at a time) counts once', async () => {
+    const { c, onReady } = setup()
+    c.add(['/x/e/1.jpg'])
+    c.add(['/x/e/1.jpg', '/x/e/2.jpg'])
+    await vi.advanceTimersByTimeAsync(2100)
+    expect(onReady).toHaveBeenCalledWith('/x/e', ['/x/e/1.jpg', '/x/e/2.jpg'])
   })
 
   test('a second export later starts afresh', async () => {
@@ -81,6 +89,67 @@ describe('waiting for a Lightroom export to finish', () => {
     await vi.advanceTimersByTimeAsync(2100)
     c.add(['/x/two/1.jpg'])
     await vi.advanceTimersByTimeAsync(2100)
-    expect(onReady.mock.calls).toEqual([['/x/one', 1], ['/x/two', 1]])
+    expect(onReady.mock.calls).toEqual([['/x/one', ['/x/one/1.jpg']], ['/x/two', ['/x/two/1.jpg']]])
+  })
+})
+
+describe('watching a folder for new exports', () => {
+  test('reacts to new JPEGs anywhere inside, but never to Zen Sync’s own saved copies or hidden files', async () => {
+    const { isWatchedPhoto } = await import('../../src/main/core/lightroom')
+    expect(isWatchedPhoto('/w', '/w/Smith wedding/IMG_1.jpg')).toBe(true)
+    expect(isWatchedPhoto('/w', '/w/IMG_1.JPG')).toBe(true)
+    expect(isWatchedPhoto('/w', '/w/Smith wedding/numbered/1.jpg')).toBe(false)
+    expect(isWatchedPhoto('/w', '/w/Smith wedding/numbered/03 Reception/01 Drinks/40.jpg')).toBe(false)
+    expect(isWatchedPhoto('/w', '/w/Smith wedding/numbered.tmp-ab12/1.jpg')).toBe(false)
+    expect(isWatchedPhoto('/w', '/w/.thumbs/a.jpg')).toBe(false)
+    expect(isWatchedPhoto('/w', '/w/notes.txt')).toBe(false)
+    expect(isWatchedPhoto('/w', '/elsewhere/a.jpg')).toBe(false)
+  })
+
+  test('a real export landing in the watched folder is reported once it settles', async () => {
+    const { watchFolder } = await import('../../src/main/core/lightroom')
+    const root = await tempDir('watch')
+    const got: string[][] = []
+    const stop = watchFolder(root, (paths) => got.push(paths))
+    await mkdir(join(root, 'Smith wedding', 'numbered'), { recursive: true })
+    await new Promise((r) => setTimeout(r, 100))
+    await writeFile(join(root, 'Smith wedding', 'a.jpg'), 'x')
+    await writeFile(join(root, 'Smith wedding', 'numbered', '1.jpg'), 'x')
+    await new Promise((r) => setTimeout(r, 400))
+    stop()
+    const all = got.flat()
+    expect(all).toContain(join(root, 'Smith wedding', 'a.jpg'))
+    expect(all.some((p) => p.includes('numbered'))).toBe(false)
+  })
+})
+
+describe('darktable', () => {
+  test('installs the Zen Sync export script, pointing at this copy of Zen Sync, and loads it once', async () => {
+    const { installDarktable } = await import('../../src/main/core/lightroom')
+    const { readFile } = await import('node:fs/promises')
+    const config = await tempDir('darktable')
+    const script = '-- zen sync\nlocal ZEN_SYNC = "__ZEN_SYNC_APP__"\n'
+    await writeFile(join(config, 'luarc'), 'require "other"\n')
+    await installDarktable(config, '/opt/Zen Sync/Zen-Sync.AppImage', script)
+    await installDarktable(config, '/opt/Zen Sync/Zen-Sync.AppImage', script)
+    expect(await readFile(join(config, 'lua', 'zen_sync.lua'), 'utf8')).toContain('"/opt/Zen Sync/Zen-Sync.AppImage"')
+    const luarc = await readFile(join(config, 'luarc'), 'utf8')
+    expect(luarc.match(/require "zen_sync"/g)).toHaveLength(1)
+    expect(luarc).toContain('require "other"')
+  })
+
+  test('a Windows path is written so Lua reads it correctly', async () => {
+    const { installDarktable } = await import('../../src/main/core/lightroom')
+    const { readFile } = await import('node:fs/promises')
+    const config = await tempDir('darktable')
+    await installDarktable(config, 'C:\\Users\\Ben\\Zen Sync\\Zen Sync.exe', 'local ZEN_SYNC = "__ZEN_SYNC_APP__"')
+    expect(await readFile(join(config, 'lua', 'zen_sync.lua'), 'utf8')).toContain('"C:\\\\Users\\\\Ben\\\\Zen Sync\\\\Zen Sync.exe"')
+  })
+
+  test('darktable keeps its settings in a known place on each system', async () => {
+    const { darktableConfigDir } = await import('../../src/main/core/lightroom')
+    expect(darktableConfigDir('linux', {}, '/home/ben')).toBe('/home/ben/.config/darktable')
+    expect(darktableConfigDir('darwin', {}, '/Users/ben')).toBe('/Users/ben/.config/darktable')
+    expect(darktableConfigDir('win32', { LOCALAPPDATA: 'C:\\L' }, 'C:\\Users\\Ben')).toBe(join('C:\\L', 'darktable'))
   })
 })
