@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { useMemo, useState } from 'react'
+import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
 import { ClockBanner } from '../components/ClockBanner'
 import { EnsoLogo } from '../components/Enso'
 import { Preview } from '../components/Preview'
@@ -17,6 +17,21 @@ function Ambient() {
   return (
     <div className="ambient" aria-hidden="true">
       <div key={current} data-testid="ambient" className="ambient-img" style={{ backgroundImage: `url("${thumbUrl(current, THUMB_SMALL)}")` }} />
+    </div>
+  )
+}
+
+/** What follows the pointer while dragging: the photo, stacked if several are selected, with a count. */
+function DragStack({ path }: { path: string }) {
+  const selected = useApp((s) => s.selected)
+  const count = selected.includes(path) ? selected.length : 1
+  const src = thumbUrl(path, THUMB_SMALL)
+  return (
+    <div className={`drag-stack${count > 1 ? ' many' : ''}`}>
+      {count > 2 && <img className="under2" src={src} alt="" />}
+      {count > 1 && <img className="under" src={src} alt="" />}
+      <img src={src} alt="" />
+      {count > 1 && <span className="drag-count">{count}</span>}
     </div>
   )
 }
@@ -50,9 +65,18 @@ export function ReviewScreen({ onSave, onSettings, dialogOpen = false }: { onSav
   const [newPartAfter, setNewPartAfter] = useState<string | null | undefined>(undefined)
   const [showSkipped, setShowSkipped] = useState(false)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
-  useKeyboard(newPartAfter === undefined && !dialogOpen)
+  const keyHandlers = useMemo(() => ({ onSave, onSettings }), [onSave, onSettings])
+  useKeyboard(newPartAfter === undefined && !dialogOpen, keyHandlers)
+  const selectedCount = useApp((s) => s.selected.length)
+
+  const [dragging, setDragging] = useState<string | null>(null)
+  function onDragStart({ active }: DragStartEvent) {
+    const id = String(active.id)
+    setDragging(id.startsWith('photo:') ? id.slice(6) : null)
+  }
 
   function onDragEnd({ active, over }: DragEndEvent) {
+    setDragging(null)
     if (!over) return
     const s = appStore().getState()
     const a = String(active.id)
@@ -92,6 +116,9 @@ export function ReviewScreen({ onSave, onSettings, dialogOpen = false }: { onSav
             {photos.length} photos, {cameraCount} {cameraCount === 1 ? 'camera' : 'cameras'}
           </span>
         </div>
+        {selectedCount > 1 && (
+          <span className="sel-count" data-testid="selection-count">{selectedCount} selected</span>
+        )}
         {skipped.length > 0 && (
           <button className="ghost" onClick={() => setShowSkipped(!showSkipped)}>
             {skipped.length === 1 ? "1 file couldn't be read" : `${skipped.length} files couldn't be read`}
@@ -113,12 +140,13 @@ export function ReviewScreen({ onSave, onSettings, dialogOpen = false }: { onSav
         </div>
       )}
       <ClockBanner />
-      <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+      <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
         <Timeline />
         <div className="body">
           <Preview />
           <Strip />
         </div>
+        <DragOverlay dropAnimation={null}>{dragging ? <DragStack path={dragging} /> : null}</DragOverlay>
       </DndContext>
       {newPartAfter !== undefined && (
         <NewPartPrompt

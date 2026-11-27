@@ -87,6 +87,19 @@ describe('ipc handlers', () => {
     expect(await h.getParts()).toHaveLength(DEFAULT_PARTS.length)
   })
 
+  test('custom keyboard shortcuts are saved and loaded', async () => {
+    const { h } = await setup(1)
+    expect(await h.getShortcuts()).toEqual({})
+    await h.setShortcuts({ next: 'D', prev: 'A' })
+    expect(await h.getShortcuts()).toEqual({ next: 'D', prev: 'A' })
+  })
+
+  test('saved shortcuts only keep text values', async () => {
+    const { h } = await setup(1)
+    await h.setShortcuts({ next: 'D', bad: 5 } as unknown as Record<string, string>)
+    expect(await h.getShortcuts()).toEqual({ next: 'D' })
+  })
+
   test('an unknown event type is ignored', async () => {
     const { h } = await setup(1)
     await h.setEvent('nonsense')

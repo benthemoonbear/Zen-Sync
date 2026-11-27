@@ -6,6 +6,9 @@ import type { Part } from '../../main/core/types'
 import { UnlockPanel } from './UnlockDialog'
 import { partColour } from '../format'
 import { EventPicker } from './EventPicker'
+import { ShortcutsPanel } from './ShortcutsPanel'
+import { useShortcuts } from '../state/shortcuts'
+import type { ShortcutMap } from '../shortcuts'
 
 function Row({ part, i, total, onChange, onGroup, onMove, onRemove }: {
   part: Part; i: number; total: number
@@ -31,12 +34,15 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const [licence, setLicence] = useState<{ licensed: boolean; customerName?: string; key?: string } | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [unlocking, setUnlocking] = useState(false)
+  const [tab, setTab] = useState<'parts' | 'shortcuts'>('parts')
+  const [shortcuts, setShortcuts] = useState<ShortcutMap>(useShortcuts.getState().map)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
 
   const loadParts = () => void window.api.getParts().then(setParts)
   useEffect(() => {
     loadParts()
     void window.api.licence().then(setLicence)
+    void useShortcuts.getState().load().then(() => setShortcuts(useShortcuts.getState().map))
   }, [])
 
   async function reset() {
@@ -57,6 +63,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
       return { ...p, name: p.name.trim() || 'Untitled', group: group || undefined }
     })
     await window.api.setParts(cleaned)
+    await useShortcuts.getState().save(shortcuts)
     onClose()
   }
 
@@ -79,6 +86,11 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
       ) : (
       <div className="dialog" style={{ width: 'min(700px, 94vw)' }}>
         <h2>Settings</h2>
+        <div className="tabs" role="tablist">
+          <button role="tab" aria-selected={tab === 'parts'} className={tab === 'parts' ? 'on' : ''} onClick={() => setTab('parts')}>Parts of the day</button>
+          <button role="tab" aria-selected={tab === 'shortcuts'} className={tab === 'shortcuts' ? 'on' : ''} onClick={() => setTab('shortcuts')}>Shortcuts</button>
+        </div>
+        {tab === 'shortcuts' ? <ShortcutsPanel map={shortcuts} onChange={setShortcuts} /> : <>
         <EventPicker onChanged={loadParts} />
         <p>Parts of the day, in order. Drag to reorder. Give parts the same folder to save them as sub-folders inside it. Changes apply the next time you sort a folder.</p>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -98,6 +110,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           <button onClick={() => setParts([...parts, { id: `custom-${Date.now().toString(36)}`, name: '', prompts: [] }])}>Add a part</button>
           <button className="ghost" onClick={() => void reset()}>Reset to defaults</button>
         </div>
+        </>}
         <div style={{ borderTop: '1px solid var(--line)', paddingTop: 12 }}>
           {licence?.licensed ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

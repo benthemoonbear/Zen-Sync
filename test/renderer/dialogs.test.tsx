@@ -166,6 +166,44 @@ describe('SettingsDialog', () => {
     expect(api.getParts).toHaveBeenCalledTimes(2)
   })
 
+  test('shortcuts can be changed in Settings: click, press the new key, save', async () => {
+    const { api } = await openSettings()
+    fireEvent.click(await screen.findByRole('tab', { name: 'Shortcuts' }))
+    const next = await screen.findByRole('button', { name: /Change shortcut for Next photo/ })
+    expect(next.textContent).toBe('→')
+    fireEvent.click(next)
+    expect(next.textContent).toMatch(/Press a key/)
+    fireEvent.keyDown(next, { key: 'd' })
+    expect(next.textContent).toBe('D')
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
+    await waitFor(() => expect(api.setShortcuts).toHaveBeenCalled())
+    const saved = (api.setShortcuts as ReturnType<typeof vi.fn>).mock.calls[0][0] as Record<string, string>
+    expect(saved.next).toBe('D')
+  })
+
+  test('taking a key another action uses leaves that action with none', async () => {
+    await openSettings()
+    fireEvent.click(await screen.findByRole('tab', { name: 'Shortcuts' }))
+    const unsure = await screen.findByRole('button', { name: /Change shortcut for Next unsure photo/ })
+    fireEvent.click(unsure)
+    fireEvent.keyDown(unsure, { key: 'ArrowRight' })
+    expect(screen.getByRole('button', { name: /Change shortcut for Next photo$/ }).textContent).toBe('None')
+    expect(screen.getByText(/also used by|was used by/i)).toBeTruthy()
+  })
+
+  test('Esc cancels changing a shortcut and Reset puts the defaults back', async () => {
+    await openSettings()
+    fireEvent.click(await screen.findByRole('tab', { name: 'Shortcuts' }))
+    const next = await screen.findByRole('button', { name: /Change shortcut for Next photo$/ })
+    fireEvent.click(next)
+    fireEvent.keyDown(next, { key: 'Escape' })
+    expect(next.textContent).toBe('→')
+    fireEvent.click(next)
+    fireEvent.keyDown(next, { key: 'q' })
+    fireEvent.click(screen.getByRole('button', { name: 'Reset shortcuts' }))
+    expect(screen.getByRole('button', { name: /Change shortcut for Next photo$/ }).textContent).toBe('→')
+  })
+
   test('an unlicensed user can enter a key they bought from Settings', async () => {
     const { api } = await openSettings()
     fireEvent.click(await screen.findByRole('button', { name: 'Unlock' }))

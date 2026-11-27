@@ -8,8 +8,8 @@ import { mockApi, sampleResult } from './helpers'
 afterEach(cleanup)
 beforeEach(() => appStore().getState().reset())
 
-async function openReview() {
-  const m = mockApi()
+async function openReview(overrides: Parameters<typeof mockApi>[0] = {}) {
+  const m = mockApi(overrides)
   render(<App />)
   fireEvent.click(screen.getByRole('button', { name: 'Choose folder' }))
   await screen.findByText(/124 photos/)
@@ -117,6 +117,55 @@ describe('review screen', () => {
     expect(first).toContain('thumb://')
     fireEvent.click(screen.getByRole('button', { name: /Next unsure/ }))
     expect(glow()).not.toBe(first)
+  })
+
+  test('Shift-click selects a range and Ctrl-click adds one more', async () => {
+    await openReview()
+    const tiles = screen.getAllByTestId('tile')
+    fireEvent.click(tiles[0])
+    fireEvent.click(tiles[3], { shiftKey: true })
+    expect(document.querySelectorAll('.tile.selected')).toHaveLength(4)
+    fireEvent.click(tiles[10], { ctrlKey: true })
+    expect(document.querySelectorAll('.tile.selected')).toHaveLength(5)
+  })
+
+  test('Ctrl+A selects every photo and Esc goes back to one', async () => {
+    await openReview()
+    fireEvent.keyDown(window, { key: 'a', ctrlKey: true })
+    expect(document.querySelectorAll('.tile.selected')).toHaveLength(124)
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(document.querySelectorAll('.tile.selected')).toHaveLength(1)
+  })
+
+  test('Shift+arrow grows the selection', async () => {
+    await openReview()
+    fireEvent.keyDown(window, { key: 'ArrowRight', shiftKey: true })
+    fireEvent.keyDown(window, { key: 'ArrowRight', shiftKey: true })
+    expect(document.querySelectorAll('.tile.selected')).toHaveLength(3)
+  })
+
+  test('custom shortcuts from Settings replace the defaults', async () => {
+    await openReview({ getShortcuts: async () => ({ next: 'D' }) })
+    await waitFor(() => {
+      fireEvent.keyDown(window, { key: 'd' })
+      expect(screen.getByTestId('preview-number').textContent).toBe('2')
+    })
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    expect(screen.getByTestId('preview-number').textContent).toBe('2')
+  })
+
+  test('Ctrl+S opens the save window', async () => {
+    await openReview()
+    fireEvent.keyDown(window, { key: 's', ctrlKey: true })
+    expect(await screen.findByText('Save numbered copies')).toBeTruthy()
+  })
+
+  test('dragging several selected photos shows how many are moving', async () => {
+    await openReview()
+    const tiles = screen.getAllByTestId('tile')
+    fireEvent.click(tiles[0])
+    fireEvent.click(tiles[2], { shiftKey: true })
+    expect(screen.getByTestId('selection-count').textContent).toBe('3 selected')
   })
 
   test('skipped files are listed on click', async () => {

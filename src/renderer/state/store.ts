@@ -11,11 +11,17 @@ export interface AppState {
   parts: Part[]
   selected: string[]
   current: string | null
+  /** Where a Shift-click or Shift+arrow range starts */
+  anchor: string | null
   edited: boolean
   load(dir: string, result: SortResult): void
   replaceResult(result: SortResult): void
   select(path: string, extend: boolean): void
-  step(delta: number): void
+  selectRange(path: string): void
+  selectAll(): void
+  selectPaths(paths: string[], add: boolean): void
+  clearSelection(): void
+  step(delta: number, extend?: boolean): void
   movePhotos(paths: string[], toIndex: number): void
   sendToPart(partId: string): void
   moveSection(partId: string, toIndex: number): void
@@ -33,7 +39,7 @@ export function createAppStore(deps: StoreDeps) {
     const record = (photos: SortedPhoto[], paths: string[]) => {
       for (const p of photos) if (paths.includes(p.path)) void deps.recordCorrection(p.path, p.partId)
     }
-    const empty = { dir: null, result: null, photos: [], partOrder: [], parts: [], selected: [], current: null, edited: false }
+    const empty = { dir: null, result: null, photos: [], partOrder: [], parts: [], selected: [], current: null, anchor: null, edited: false }
     return {
       ...empty,
       load: (dir, result) => {
@@ -47,6 +53,7 @@ export function createAppStore(deps: StoreDeps) {
           partOrder,
           selected: photos[0] ? [photos[0].path] : [],
           current: photos[0]?.path ?? null,
+          anchor: photos[0]?.path ?? null,
           edited: false
         })
       },
@@ -56,15 +63,36 @@ export function createAppStore(deps: StoreDeps) {
       },
       select: (path, extend) => {
         const { selected } = get()
-        if (!extend) return set({ selected: [path], current: path })
+        if (!extend) return set({ selected: [path], current: path, anchor: path })
         const next = selected.includes(path) ? selected.filter((p) => p !== path) : [...selected, path]
-        set({ selected: next.length ? next : [path], current: path })
+        set({ selected: next.length ? next : [path], current: path, anchor: path })
       },
-      step: (delta) => {
+      selectRange: (path) => {
+        const { photos, anchor, current } = get()
+        const a = photos.findIndex((p) => p.path === (anchor ?? current))
+        const b = photos.findIndex((p) => p.path === path)
+        if (b < 0) return
+        if (a < 0) return set({ selected: [path], current: path, anchor: path })
+        const [lo, hi] = a <= b ? [a, b] : [b, a]
+        set({ selected: photos.slice(lo, hi + 1).map((p) => p.path), current: path })
+      },
+      selectAll: () => set({ selected: get().photos.map((p) => p.path) }),
+      selectPaths: (paths, add) => {
+        if (!paths.length && add) return
+        const base = add ? get().selected : []
+        const next = [...base, ...paths.filter((p) => !base.includes(p))]
+        set({ selected: next.length ? next : get().current ? [get().current!] : [], current: paths.at(-1) ?? get().current })
+      },
+      clearSelection: () => {
+        const { current } = get()
+        set({ selected: current ? [current] : [], anchor: current })
+      },
+      step: (delta, extend = false) => {
         const { photos, current } = get()
         if (!photos.length) return
         const i = Math.max(0, Math.min(photos.length - 1, photos.findIndex((p) => p.path === current) + delta))
-        set({ current: photos[i].path, selected: [photos[i].path] })
+        if (extend) return get().selectRange(photos[i].path)
+        set({ current: photos[i].path, selected: [photos[i].path], anchor: photos[i].path })
       },
       movePhotos: (paths, toIndex) => {
         const before = new Map(get().photos.map((p) => [p.path, p.partId]))
@@ -91,7 +119,7 @@ export function createAppStore(deps: StoreDeps) {
       },
       goNextUnsure: () => {
         const path = nextUnsure(get().photos, get().current)
-        if (path) set({ current: path, selected: [path] })
+        if (path) set({ current: path, selected: [path], anchor: path })
       },
       reset: () => set(empty)
     }

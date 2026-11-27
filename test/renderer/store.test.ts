@@ -50,6 +50,34 @@ describe('app store', () => {
     expect(store.getState().selected).toEqual(['/w/1.jpg', '/w/3.jpg'])
   })
 
+  test('shift-click selects the range from the last clicked photo, in on-screen order', () => {
+    store.getState().select('/w/1.jpg', false)
+    store.getState().selectRange('/w/3.jpg')
+    expect(store.getState().selected).toEqual(['/w/1.jpg', '/w/2.jpg', '/w/3.jpg'])
+    expect(store.getState().current).toBe('/w/3.jpg')
+    store.getState().selectRange('/w/2.jpg')
+    expect(store.getState().selected).toEqual(['/w/1.jpg', '/w/2.jpg'])
+  })
+
+  test('select all, set a box selection (adding or replacing) and clear back to one', () => {
+    store.getState().selectAll()
+    expect(store.getState().selected).toHaveLength(3)
+    store.getState().selectPaths(['/w/3.jpg'], false)
+    expect(store.getState().selected).toEqual(['/w/3.jpg'])
+    store.getState().selectPaths(['/w/1.jpg'], true)
+    expect(store.getState().selected).toEqual(['/w/3.jpg', '/w/1.jpg'])
+    store.getState().clearSelection()
+    expect(store.getState().selected).toEqual([store.getState().current])
+  })
+
+  test('step with extend grows the selection with the arrow keys', () => {
+    store.getState().step(1, true)
+    store.getState().step(1, true)
+    expect(store.getState().selected).toEqual(['/w/1.jpg', '/w/2.jpg', '/w/3.jpg'])
+    store.getState().step(-1, true)
+    expect(store.getState().selected).toEqual(['/w/1.jpg', '/w/2.jpg'])
+  })
+
   test('step moves the current photo with the arrow keys', () => {
     store.getState().step(1)
     expect(store.getState().current).toBe('/w/2.jpg')

@@ -28,6 +28,7 @@ export interface HandlerDeps {
 }
 
 export function createHandlers(deps: HandlerDeps) {
+  const shortcutsStore = createStore<Record<string, string>>(join(deps.userData, 'shortcuts.json'), {})
   const eventStore = createStore<string>(join(deps.userData, 'event.json'), DEFAULT_EVENT)
   const currentEvent = () => eventById(eventStore.get())
   // Wedding parts keep the original parts.json, so edits from older versions carry over.
@@ -109,6 +110,16 @@ export function createHandlers(deps: HandlerDeps) {
     /** Saves the current event's parts; an empty list resets them to the event's defaults. */
     async setParts(parts: Part[]): Promise<void> {
       partsStore(currentEvent().id).set(parts.length ? parts : null)
+    },
+
+    async getShortcuts(): Promise<Record<string, string>> {
+      return shortcutsStore.get()
+    },
+
+    async setShortcuts(map: Record<string, string>): Promise<void> {
+      const clean: Record<string, string> = {}
+      for (const [k, v] of Object.entries(map ?? {})) if (typeof v === 'string' && v.length <= 40) clean[k] = v
+      shortcutsStore.set(clean)
     },
 
     async getEvents(): Promise<{ current: string; events: { id: string; name: string }[] }> {

@@ -41,6 +41,8 @@ export function mockApi(overrides: Partial<Api> = {}) {
       events: [{ id: 'wedding', name: 'Wedding' }, { id: 'corporate', name: 'Corporate event' }]
     })),
     setEvent: vi.fn(async () => {}),
+    getShortcuts: vi.fn(async () => ({})),
+    setShortcuts: vi.fn(async () => {}),
     licence: vi.fn(async () => ({ licensed: false })),
     activate: vi.fn(async () => ({ ok: true as const, customerName: 'Jane Smith' })),
     deactivate: vi.fn(async () => ({ ok: true })),

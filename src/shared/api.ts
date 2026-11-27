@@ -28,6 +28,8 @@ export interface Api {
   save(req: SaveRequest): Promise<SaveResponse>
   getParts(): Promise<Part[]>
   setParts(parts: Part[]): Promise<void>
+  getShortcuts(): Promise<Record<string, string>>
+  setShortcuts(map: Record<string, string>): Promise<void>
   getEvents(): Promise<{ current: string; events: { id: string; name: string }[] }>
   setEvent(id: string): Promise<void>
   licence(): Promise<{ licensed: boolean; customerName?: string; key?: string }>
@@ -41,7 +43,7 @@ export interface Api {
 /** Invoke-style methods, in the order the preload exposes them. */
 export const INVOKE_METHODS = [
   'chooseFolder', 'sort', 'applyClockFix', 'recordCorrection', 'save', 'getParts', 'setParts',
-  'getEvents', 'setEvent', 'licence', 'activate', 'deactivate', 'buy', 'showFolder'
+  'getEvents', 'setEvent', 'getShortcuts', 'setShortcuts', 'licence', 'activate', 'deactivate', 'buy', 'showFolder'
 ] as const
 
 export type InvokeMethod = (typeof INVOKE_METHODS)[number]
