@@ -5,7 +5,8 @@ import type { Embedder } from './embed'
 import { mergeCameras } from './merge'
 import { scanFolder } from './scan'
 import { assignMonotonic } from './smooth'
-import type { Part, PhotoFile, Skipped, SortResult } from './types'
+import type { Part, PhotoFile, Skipped, SortedClip, SortResult } from './types'
+import { placeClips } from './video'
 import { applyCorrections, type CorrectionSet } from './corrections'
 import { findMoments, MOMENT_MIN_PHOTOS } from './moments'
 
@@ -41,6 +42,8 @@ export interface SortSession {
   /** The photos that were read, and files that couldn't be, kept so the sort can be redone with other parts */
   files: PhotoFile[]
   skipped: Skipped[]
+  /** Video clips found with the photos */
+  clips: SortedClip[]
 }
 
 const CHUNK = 16
@@ -80,6 +83,7 @@ export async function runSort(dir: string, deps: SortDeps): Promise<SortSession>
     const keep = new Set(deps.only)
     scanned.photos = scanned.photos.filter((p) => keep.has(p.path))
     scanned.skipped = []
+    scanned.videos = []
   }
   onProgress?.('scan', 1, 1)
 
@@ -94,7 +98,7 @@ export async function runSort(dir: string, deps: SortDeps): Promise<SortSession>
     const chosen = await deps.choose(photos.map((p) => embs.get(p.path)!))
     classifyDeps = { ...deps, parts: chosen.parts, event: chosen.event }
   }
-  const session = await classify(dir, photos, embs, skipped, classifyDeps)
+  const session = await classify(dir, photos, embs, skipped, classifyDeps, new Map(), scanned.videos)
   onProgress?.('arrange', 1, 1)
   return session
 }
@@ -119,7 +123,8 @@ async function classify(
   embs: Map<string, Float32Array>,
   skipped: Skipped[],
   deps: ClassifyDeps,
-  offsets: Map<string, number> = new Map()
+  offsets: Map<string, number> = new Map(),
+  clips: SortedClip[] = []
 ): Promise<SortSession> {
   const { embedder, parts } = deps
   const cameras = groupCameras(photos)
@@ -144,6 +149,7 @@ async function classify(
     offsets,
     files: photos,
     skipped,
+    clips,
     // Clocks already fixed stay fixed, so they aren't suggested again.
     result: { photos: [], parts, cameras, clock: findClockOffsets(cameras, embs).filter((c) => !offsets.has(c.cameraId)), skipped, event: deps.event }
   }
@@ -164,7 +170,7 @@ async function classify(
 
 /** Re-sorts with different parts (e.g. another event type) using the photos already read: no re-embedding. */
 export async function reclassify(session: SortSession, deps: ClassifyDeps): Promise<SortSession> {
-  return classify(session.dir, session.files, session.embs, session.skipped, deps, session.offsets)
+  return classify(session.dir, session.files, session.embs, session.skipped, deps, session.offsets, session.clips)
 }
 
 function remerge(s: SortSession): void {
@@ -181,6 +187,7 @@ function remerge(s: SortSession): void {
     const overridden = argmax(row) !== s.partOf.get(p.path)
     return { ...p, unsure: isUnsure(row) || overridden }
   })
+  s.result.clips = placeClips(s.result.photos, s.clips ?? []).map(({ after: _after, ...c }) => c)
 }
 
 /** Accepts the suggested clock correction for one camera and re-merges. */

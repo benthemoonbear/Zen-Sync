@@ -107,6 +107,7 @@ export function ReviewScreen({ onSave, onSettings, dialogOpen = false }: { onSav
   const skipped = result?.skipped ?? []
   const unsureCount = photos.filter((p) => p.unsure).length
   const cameraCount = result?.cameras.length ?? 0
+  const clipCount = result?.clips?.length ?? 0
   return (
     <div className="app review">
       <Ambient />
@@ -116,6 +117,7 @@ export function ReviewScreen({ onSave, onSettings, dialogOpen = false }: { onSav
           <h1 style={{ margin: 0, font: 'inherit' }}><strong>{folderName(dir ?? '')}</strong></h1>
           <span className="stats">
             {photos.length} photos, {cameraCount} {cameraCount === 1 ? 'camera' : 'cameras'}
+            {clipCount > 0 && `, ${clipCount === 1 ? '1 video clip' : `${clipCount} video clips`}`}
           </span>
           <EventChip />
         </div>

@@ -42,6 +42,35 @@ describe('ipc handlers', () => {
     expect(await h.save({ dir, photos: r.photos, parts: r.parts, mode: 'single', overwrite: false })).toEqual({ written: 3, outDir: join(dir, 'numbered') })
   })
 
+  test('video clips are saved with the photos, with timecode lists for editing; or left out', async () => {
+    const { h, dir } = await setup(2)
+    const { writeFile, readdir, readFile } = await import('node:fs/promises')
+    await writeFile(join(dir, 'C0001.MP4'), 'movie')
+    const r = await h.sort(dir)
+    expect(r.clips?.map((c) => c.name)).toEqual(['C0001.MP4'])
+    expect(await h.save({ dir, photos: r.photos, parts: r.parts, mode: 'single', overwrite: false })).toEqual({ written: 3, clips: 1, outDir: join(dir, 'numbered') })
+    expect((await readdir(join(dir, 'numbered'))).sort()).toEqual(['1.jpg', '2.jpg', 'Timecode', 'V001.mp4'])
+    expect(await readFile(join(dir, 'numbered', 'Timecode', 'Day order.edl'), 'utf8')).toContain('* FROM CLIP NAME: V001.mp4')
+
+    await h.save({ dir, photos: r.photos, parts: r.parts, mode: 'single', overwrite: true, video: { copy: false, timecode: true } })
+    expect((await readdir(join(dir, 'numbered'))).sort()).toEqual(['1.jpg', '2.jpg', 'Timecode'])
+    expect(await readFile(join(dir, 'numbered', 'Timecode', 'Day order.edl'), 'utf8')).toContain('* FROM CLIP NAME: C0001.MP4')
+
+    await h.save({ dir, photos: r.photos, parts: r.parts, mode: 'single', overwrite: true, video: { copy: false, timecode: false } })
+    expect((await readdir(join(dir, 'numbered'))).sort()).toEqual(['1.jpg', '2.jpg'])
+  })
+
+  test('a synced job picks up clips added later', async () => {
+    const { h, dir } = await setup(2)
+    const { writeFile, readdir } = await import('node:fs/promises')
+    const r = await h.sort(dir)
+    await h.save({ dir, photos: r.photos, parts: r.parts, mode: 'single', overwrite: false, keepInSync: true })
+    await new Promise((res) => setTimeout(res, 50))
+    await writeFile(join(dir, 'C0001.MP4'), 'movie')
+    await h.syncJob(dir)
+    expect((await readdir(join(dir, 'numbered'))).sort()).toEqual(['1.jpg', '2.jpg', 'Timecode', 'V001.mp4'])
+  })
+
   test('keeping a job in sync: late photos are added and the numbered copies renumbered', async () => {
     const { h, dir, events } = await setup(3)
     const r = await h.sort(dir)

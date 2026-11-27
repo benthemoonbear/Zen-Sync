@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
-import { join, resolve, sep } from 'node:path'
+import { basename, join, resolve, sep } from 'node:path'
 import { addCorrection, type CorrectionSet } from './core/corrections'
 import type { Embedder } from './core/embed'
 import { activate, canSave, claimPurchase, deactivate, isLicensed, type LicenceState } from './core/licence'
@@ -11,6 +11,8 @@ import { applyClockFix, reclassify, runSort, type SortSession } from './core/pip
 import { normalise } from './core/embed'
 import { MODEL } from './core/embed'
 import { OUTPUT_FOLDER, planOutput, writeCopies } from './core/save'
+import { clipsForTimecode, timecodeFiles } from './core/timecode'
+import type { SaveMode, SortedClip, SortedPhoto } from './core/types'
 import { createStore } from './core/store'
 import { scanFolder } from './core/scan'
 import { applyOffsets, placeNewPhotos, type Job } from './core/sync'
@@ -59,19 +61,42 @@ export function createHandlers(deps: HandlerDeps) {
   }
   const jobsChanged = () => deps.jobsChanged?.(Object.keys(jobsStore.get()))
 
+  const DEFAULT_VIDEO = { copy: true, timecode: true }
+
+  /** Writes the numbered copies with any video clips placed among them, and the timecode lists. */
+  function writeJob(
+    dir: string,
+    photos: SortedPhoto[],
+    parts: Part[],
+    mode: SaveMode,
+    clips: SortedClip[],
+    video: { copy: boolean; timecode: boolean },
+    overwrite: boolean,
+    licensed: boolean
+  ) {
+    const used = video.copy || video.timecode ? clips : []
+    const full = planOutput(photos, parts, mode, used)
+    const plan = video.copy ? full : full.filter((c) => !c.clip)
+    const extra = video.timecode && used.length ? timecodeFiles(clipsForTimecode(full, used, parts, video.copy), basename(dir)) : []
+    return writeCopies(dir, plan, { overwrite, mode, licensed, extra })
+  }
+
   /** Adds photos that appeared in a synced job's folder (and drops deleted ones), then rewrites the numbered copies. */
   async function syncJob(dirIn: string): Promise<SyncOutcome> {
     const dir = resolve(dirIn)
     return serial(dir, async () => {
       const job = jobsStore.get()[dir]
       if (!job) return { added: 0, removed: 0 }
-      const { photos: onDisk } = await scanFolder(dir)
+      const { photos: onDisk, videos } = await scanFolder(dir)
+      const video = job.video ?? DEFAULT_VIDEO
+      const clipKey = (cs: { path: string }[]) => cs.map((c) => c.path).sort().join('\n')
+      const clipsChanged = (video.copy || video.timecode) && clipKey(videos) !== clipKey(job.clips ?? [])
       const disk = new Set(onDisk.map((p) => p.path))
       const known = new Set(job.photos.map((p) => p.path))
       const fresh = onDisk.filter((p) => !known.has(p.path)).map((p) => p.path)
       const kept = job.photos.filter((p) => disk.has(p.path))
       const removed = job.photos.length - kept.length
-      if (!fresh.length && !removed) return { added: 0, removed: 0 }
+      if (!fresh.length && !removed && !clipsChanged) return { added: 0, removed: 0 }
       let photos = kept
       if (fresh.length) {
         const s = await runSort(dir, {
@@ -91,8 +116,8 @@ export function createHandlers(deps: HandlerDeps) {
         deps.emit(EVENTS.jobSynced, { dir, name, added: 0, removed: 0, blocked: check.reason })
         return { added: 0, removed: 0, blocked: check.reason }
       }
-      await writeCopies(dir, planOutput(photos, job.parts, job.mode), { overwrite: true, mode: job.mode, licensed })
-      jobsStore.set({ ...jobsStore.get(), [dir]: { ...job, photos, savedAt: Date.now() } })
+      await writeJob(dir, photos, job.parts, job.mode, videos, video, true, licensed)
+      jobsStore.set({ ...jobsStore.get(), [dir]: { ...job, photos, clips: videos, savedAt: Date.now() } })
       const outcome = { added: photos.length - kept.length, removed }
       deps.emit(EVENTS.jobSynced, { dir, name, ...outcome })
       return outcome
@@ -221,18 +246,21 @@ export function createHandlers(deps: HandlerDeps) {
       if (!check.ok) return { blocked: check.reason }
       const dir = resolve(req.dir)
       const r = await serial(dir, () =>
-        writeCopies(req.dir, planOutput(req.photos, req.parts, req.mode), { overwrite: req.overwrite, mode: req.mode, licensed })
+        writeJob(req.dir, req.photos, req.parts, req.mode, session?.clips ?? [], req.video ?? DEFAULT_VIDEO, req.overwrite, licensed)
       )
       if ('exists' in r) return r
       const jobs = { ...jobsStore.get() }
       const offsets = session && resolve(session.dir) === dir ? Object.fromEntries(session.offsets) : jobsStore.get()[dir]?.offsets
-      if (req.keepInSync) jobs[dir] = { dir, mode: req.mode, parts: req.parts, photos: req.photos, savedAt: Date.now(), offsets }
+      if (req.keepInSync)
+        jobs[dir] = { dir, mode: req.mode, parts: req.parts, photos: req.photos, savedAt: Date.now(), offsets, video: req.video ?? DEFAULT_VIDEO, clips: session?.clips ?? [] }
       else delete jobs[dir]
       jobsStore.set(jobs)
       jobsChanged()
       // Catch anything that arrived while the job was being reviewed.
       if (req.keepInSync) void syncJob(dir).catch((e) => console.error('Sync failed:', e))
-      return { written: r.written, outDir: join(req.dir, OUTPUT_FOLDER) }
+      const video = req.video ?? DEFAULT_VIDEO
+      const clips = video.copy ? (session?.clips.length ?? 0) : 0
+      return clips ? { written: r.written, clips, outDir: join(req.dir, OUTPUT_FOLDER) } : { written: r.written, outDir: join(req.dir, OUTPUT_FOLDER) }
     },
 
     /** Parts of an event type (default: the one being edited). */

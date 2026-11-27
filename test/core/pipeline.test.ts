@@ -29,6 +29,17 @@ async function wedding() {
 }
 
 describe('runSort', () => {
+  test('video clips in the folder are placed into the day with the photos', async () => {
+    const { dir, emb } = await wedding()
+    await writeFile(join(dir, 'C0001.MP4'), 'movie')
+    await writeFile(join(dir, 'C0001M01.XML'), '<NonRealTimeMeta><CreationDate value="2026-11-07T12:19:00Z"/></NonRealTimeMeta>')
+    const { result } = await runSort(dir, { embedder: emb, parts })
+    expect(result.clips?.map((c) => [c.name, c.partId])).toEqual([['C0001.MP4', 'confetti']])
+    expect(result.photos.map((p) => p.name)).not.toContain('C0001.MP4')
+    const only = await runSort(dir, { embedder: emb, parts, only: [join(dir, 'AAA001.jpg')] })
+    expect(only.result.clips).toEqual([]) // an editor's export is photos only
+  })
+
   test('returns every readable photo exactly once and reports skipped files', async () => {
     const { dir, emb } = await wedding()
     const { result } = await runSort(dir, { embedder: emb, parts })

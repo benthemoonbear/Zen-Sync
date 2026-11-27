@@ -80,6 +80,39 @@ describe('SaveDialog', () => {
   })
 })
 
+describe('video clips', () => {
+  const withClips = () => ({
+    ...small(),
+    clips: [
+      { path: '/w/bakewell wedding/C0001.MP4', name: 'C0001.MP4', startMs: Date.UTC(2026, 6, 4, 13), durationMs: 42_000, fps: 25, partId: 'ceremony' },
+      { path: '/w/bakewell wedding/C0002.MP4', name: 'C0002.MP4', startMs: Date.UTC(2026, 6, 4, 17), durationMs: 9_000, fps: 25, partId: 'speeches' }
+    ]
+  })
+
+  test('the header counts clips, and saving copies them with timecode lists by default', async () => {
+    const { api } = await openSave({ save: vi.fn(async () => ({ written: 22, clips: 2, outDir: '/w/bakewell wedding/numbered' })) }, withClips())
+    expect(screen.getByText(/photos, .*cameras?, 2 video clips/)).toBeTruthy()
+    const copy = screen.getByRole('checkbox', { name: /Copy the 2 video clips/ }) as HTMLInputElement
+    const tc = screen.getByRole('checkbox', { name: /timecode lists/i }) as HTMLInputElement
+    expect([copy.checked, tc.checked]).toEqual([true, true])
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.save).toHaveBeenCalledWith(expect.objectContaining({ video: { copy: true, timecode: true } })))
+    expect(await screen.findByText('Saved 20 photos and 2 video clips to numbered')).toBeTruthy()
+  })
+
+  test('you can leave the clips where they are and only write the timecode lists', async () => {
+    const { api } = await openSave({}, withClips())
+    fireEvent.click(screen.getByRole('checkbox', { name: /Copy the 2 video clips/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.save).toHaveBeenCalledWith(expect.objectContaining({ video: { copy: false, timecode: true } })))
+  })
+
+  test('with no clips, nothing about video is shown', async () => {
+    await openSave({}, small())
+    expect(screen.queryByRole('checkbox', { name: /video clips/ })).toBeNull()
+  })
+})
+
 describe('background sync', () => {
   test('a toast says when a synced job was updated in the background', async () => {
     const listeners: { jobSynced?: (e: { dir: string; name: string; added: number; removed: number }) => void } = {}

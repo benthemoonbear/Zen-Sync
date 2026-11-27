@@ -41,6 +41,23 @@ export interface SortedPhoto {
   unsure: boolean
 }
 
+/** A video clip found with the photos, placed into the day by its start time */
+export interface SortedClip {
+  path: string
+  name: string
+  folder?: string
+  size?: number
+  /** Start time of day, stored as if UTC (like photo capture times) */
+  startMs?: number
+  durationMs?: number
+  fps?: number
+  startTimecode?: string
+  model?: string
+  /** Part it was placed in, and whether its time was missing */
+  partId?: string
+  unsure?: boolean
+}
+
 export interface Skipped {
   name: string
   reason: string
@@ -56,6 +73,8 @@ export interface SortResult {
   event?: { id: string; name: string; detected: boolean }
   /** Moments found that aren't on the parts list, offered as new parts */
   moments?: { name: string; paths: string[]; afterPartId: string | null }[]
+  /** Video clips found in the folder, in day order */
+  clips?: SortedClip[]
 }
 
 export type SaveMode = 'single' | 'perPart'

@@ -1,4 +1,4 @@
-import type { Part, SaveMode, SortedPhoto } from './types'
+import type { Part, SaveMode, SortedClip, SortedPhoto } from './types'
 
 /** A saved job Zen Sync keeps in sync: the arrangement as last saved, so late photos can join it. */
 export interface Job {
@@ -9,6 +9,10 @@ export interface Job {
   savedAt: number
   /** Clock fixes made during review, per camera (ms), applied to late photos from those cameras */
   offsets?: Record<string, number>
+  /** What to do with video clips in the folder (copy, timecode lists); clips are re-read on each sync */
+  video?: { copy: boolean; timecode: boolean }
+  /** Clips found when last saved */
+  clips?: SortedClip[]
 }
 
 /**

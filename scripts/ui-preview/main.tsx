@@ -15,7 +15,9 @@ let currentEvent = 'wedding'
     new Promise((resolve) => {
       const dyn = location.search.includes('moments')
         ? { ...result, event: { id: 'wedding', name: 'Wedding', detected: true }, moments: [{ name: 'Sparkler exit', paths: result.photos.slice(-6).map((p: any) => p.path), afterPartId: result.photos.at(-7).partId }] }
-        : result
+        : location.search.includes('clips')
+          ? { ...result, clips: Array.from({ length: 38 }, (_, i) => ({ path: `/w/C${String(i + 1).padStart(4, '0')}.MP4`, name: `C${String(i + 1).padStart(4, '0')}.MP4`, fps: 25, durationMs: 30000 })) }
+          : result
       if (!location.search.includes('slow')) return resolve(dyn)
       let done = 0
       const t = setInterval(() => {

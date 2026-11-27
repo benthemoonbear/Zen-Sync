@@ -1,7 +1,8 @@
 import { open, readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import exifr from 'exifr'
-import type { PhotoFile, Skipped } from './types'
+import type { PhotoFile, Skipped, SortedClip } from './types'
+import { isVideoName, readVideoInfo } from './video'
 
 const JPEG_NAME = /^(?!\._).+\.jpe?g$/i
 
@@ -49,23 +50,28 @@ function text(v: unknown): string | undefined {
 const SKIP_DIR = /^(\.|numbered(\.(tmp|old)-[0-9a-f]+)?$)/i
 const MAX_DEPTH = 6
 
-async function listJpegs(dir: string, rel: string, depth: number, out: { path: string; name: string; folder: string }[]): Promise<void> {
+type Found = { path: string; name: string; folder: string }
+
+async function listJpegs(dir: string, rel: string, depth: number, out: Found[], videos: Found[] = []): Promise<void> {
   const entries = await readdir(dir, { withFileTypes: true })
   for (const e of entries) {
     if (e.isDirectory()) {
       if (depth < MAX_DEPTH && !SKIP_DIR.test(e.name)) {
-        await listJpegs(join(dir, e.name), rel ? `${rel}/${e.name}` : e.name, depth + 1, out)
+        await listJpegs(join(dir, e.name), rel ? `${rel}/${e.name}` : e.name, depth + 1, out, videos)
       }
     } else if (e.isFile() && JPEG_NAME.test(e.name)) {
       out.push({ path: join(dir, e.name), name: e.name, folder: rel })
+    } else if (e.isFile() && !e.name.startsWith('._') && isVideoName(e.name)) {
+      videos.push({ path: join(dir, e.name), name: e.name, folder: rel })
     }
   }
 }
 
-/** Finds every JPEG in the folder and its sub-folders (not our own output) and reads its camera details. */
-export async function scanFolder(dir: string): Promise<{ photos: PhotoFile[]; skipped: Skipped[] }> {
-  const files: { path: string; name: string; folder: string }[] = []
-  await listJpegs(dir, '', 0, files)
+/** Finds every JPEG and video clip in the folder and its sub-folders (not our own output) and reads their details. */
+export async function scanFolder(dir: string): Promise<{ photos: PhotoFile[]; skipped: Skipped[]; videos: SortedClip[] }> {
+  const files: Found[] = []
+  const found: Found[] = []
+  await listJpegs(dir, '', 0, files, found)
   const relName = (f: { name: string; folder: string }) => (f.folder ? `${f.folder}/${f.name}` : f.name)
   files.sort((a, b) => relName(a).localeCompare(relName(b)))
   const photos: PhotoFile[] = []
@@ -98,5 +104,11 @@ export async function scanFolder(dir: string): Promise<{ photos: PhotoFile[]; sk
       skipped.push({ name: relName(f), reason: "Couldn't read this file" })
     }
   }
-  return { photos, skipped }
+  const videos: SortedClip[] = []
+  for (const f of found.sort((a, b) => relName(a).localeCompare(relName(b)))) {
+    const info = await readVideoInfo(f.path)
+    const size = await stat(f.path).then((s) => s.size, () => 0)
+    videos.push({ path: f.path, name: f.name, folder: f.folder, size, ...info })
+  }
+  return { photos, skipped, videos }
 }

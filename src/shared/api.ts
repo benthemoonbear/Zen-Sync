@@ -16,9 +16,16 @@ export interface SaveRequest {
   overwrite: boolean
   /** Keep this job in sync: photos added to the folder later are placed and the numbered copies updated */
   keepInSync?: boolean
+  /** Video clips found with the photos: copy them into the numbered folders, and/or write timecode lists (both by default) */
+  video?: VideoOptions
 }
 
-export type SaveResponse = { written: number; outDir: string } | { exists: true } | { blocked: 'limit' | 'perPartLocked' }
+export interface VideoOptions {
+  copy: boolean
+  timecode: boolean
+}
+
+export type SaveResponse = { written: number; outDir: string; clips?: number } | { exists: true } | { blocked: 'limit' | 'perPartLocked' }
 
 export interface Api {
   chooseFolder(): Promise<string | null>

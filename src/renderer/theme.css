@@ -368,3 +368,23 @@ option { background: var(--raised); color: var(--text); }
   .body { grid-template-columns: 1fr; grid-template-rows: minmax(260px, 45%) 1fr; }
   .header .title .stats { display: none; }
 }
+
+/* Video options in the save dialog: a quiet group under a hairline, not a boxed fieldset */
+.video-options {
+  border: 0;
+  margin: 4px 0 0;
+  padding: 14px 0 0;
+  min-inline-size: 0;
+  border-top: 1px solid var(--line, rgba(255, 255, 255, 0.08));
+  display: grid;
+  gap: 12px;
+}
+.video-options legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted, rgba(255, 255, 255, 0.6));
+}

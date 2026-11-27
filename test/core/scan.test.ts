@@ -74,4 +74,17 @@ describe('scanFolder', () => {
     expect(photos[0].path).toBe(join(dir, 'Café shot 1.jpg'))
     expect(photos[0].captureMs).toBe(Date.UTC(2026, 5, 1, 10, 0, 0))
   })
+
+  test('finds video clips too, in sub-folders, and reads their start times', async () => {
+    const dir = await tempDir()
+    await mkdir(join(dir, 'Video', 'CLIP'), { recursive: true })
+    await writeFile(join(dir, 'Video', 'CLIP', 'C0001.MP4'), 'not really a movie')
+    await writeFile(join(dir, 'Video', 'CLIP', 'C0001M01.XML'), '<NonRealTimeMeta><CreationDate value="2026-07-04T14:30:00+01:00"/></NonRealTimeMeta>')
+    await writeFile(join(dir, '._C0002.MP4'), 'mac junk')
+    await mkdir(join(dir, 'numbered'))
+    await writeFile(join(dir, 'numbered', 'V001.mp4'), 'our own output')
+    const { videos, photos } = await scanFolder(dir)
+    expect(photos).toEqual([])
+    expect(videos.map((v) => [v.name, v.folder, v.startMs])).toEqual([['C0001.MP4', 'Video/CLIP', Date.UTC(2026, 6, 4, 14, 30)]])
+  })
 })
