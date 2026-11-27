@@ -6,8 +6,20 @@ import { Preview } from '../components/Preview'
 import { Strip } from '../components/Strip'
 import { Timeline } from '../components/Timeline'
 import { folderName } from '../format'
+import { thumbUrl, THUMB_SMALL } from '../../shared/api'
 import { appStore, useApp } from '../state/store'
 import { useKeyboard } from '../useKeyboard'
+
+/** The selected photo, hugely blurred, glowing behind the whole screen. Fades in when the selection changes. */
+function Ambient() {
+  const current = useApp((s) => s.current)
+  if (!current) return null
+  return (
+    <div className="ambient" aria-hidden="true">
+      <div key={current} data-testid="ambient" className="ambient-img" style={{ backgroundImage: `url("${thumbUrl(current, THUMB_SMALL)}")` }} />
+    </div>
+  )
+}
 
 function NewPartPrompt({ onDone }: { onDone: (name: string | null) => void }) {
   const [name, setName] = useState('')
@@ -70,7 +82,8 @@ export function ReviewScreen({ onSave, onSettings, dialogOpen = false }: { onSav
   const unsureCount = photos.filter((p) => p.unsure).length
   const cameraCount = result?.cameras.length ?? 0
   return (
-    <div className="app">
+    <div className="app review">
+      <Ambient />
       <div className="header">
         <span className="brand"><EnsoLogo size={24} small /></span>
         <div className="title">

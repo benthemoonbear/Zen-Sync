@@ -106,7 +106,17 @@ describe('review screen', () => {
 
   test('preview shows number, part, camera and time', async () => {
     await openReview()
-    expect(screen.getByTestId('preview-meta').textContent).toBe('Arrival · ILME-FX3 · 11:47')
+    expect(screen.getByTestId('preview-part').textContent).toBe('Arrival')
+    expect(screen.getByTestId('preview-meta').textContent).toBe('ILME-FX3, 11:47')
+  })
+
+  test('the selected photo glows behind the whole screen and follows the selection', async () => {
+    await openReview()
+    const glow = () => (screen.getByTestId('ambient') as HTMLElement).style.backgroundImage
+    const first = glow()
+    expect(first).toContain('thumb://')
+    fireEvent.click(screen.getByRole('button', { name: /Next unsure/ }))
+    expect(glow()).not.toBe(first)
   })
 
   test('skipped files are listed on click', async () => {

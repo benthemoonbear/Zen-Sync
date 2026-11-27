@@ -1,6 +1,6 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 import { sectionSizes } from '../state/order'
-import { partColour, textOn, timeOfDay } from '../format'
+import { partColour, timeOfDay } from '../format'
 import { useApp } from '../state/store'
 
 function Gap({ after }: { after: string }) {
@@ -22,7 +22,7 @@ function Section({ partId, count, name, colour, onJump }: { partId: string; coun
       data-testid="timeline-section"
       data-part={partId}
       className={`tl-section${drop.isOver ? ' drop-target' : ''}`}
-      style={{ flexGrow: count, flexBasis: 0, background: colour, color: textOn(colour), opacity: drag.isDragging ? 0.4 : 1 }}
+      style={{ flexGrow: count, flexBasis: 0, ['--part' as string]: colour, opacity: drag.isDragging ? 0.4 : 1 }}
       title={`${name}: ${count} photos`}
       onClick={onJump}
     >

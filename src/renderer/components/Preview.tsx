@@ -12,11 +12,8 @@ export function Preview() {
   if (!photo) return <div className="preview" />
   const partIndex = parts.findIndex((p) => p.id === photo.partId)
   const src = thumbUrl(photo.path, THUMB_LARGE)
-  const meta = [
-    parts.find((p) => p.id === photo.partId)?.name ?? photo.partId,
-    cameras.find((c) => c.id === photo.cameraId)?.label ?? photo.cameraId,
-    timeOfDay(photo.correctedMs)
-  ].filter(Boolean)
+  const partName = parts.find((p) => p.id === photo.partId)?.name ?? photo.partId
+  const detail = [cameras.find((c) => c.id === photo.cameraId)?.label ?? photo.cameraId, timeOfDay(photo.correctedMs)].filter(Boolean)
   return (
     <div className="preview">
       <div className="img">
@@ -25,8 +22,13 @@ export function Preview() {
       </div>
       <div className="meta">
         <span className="num" data-testid="preview-number">{index + 1}</span>
-        <span className="dot" style={{ background: partColour(partIndex, parts.length) }} aria-hidden="true" />
-        <span className="meta-text" data-testid="preview-meta">{meta.join(' · ')}</span>
+        <span className="meta-text">
+          <b>
+            <span className="dot" style={{ background: partColour(partIndex, parts.length) }} aria-hidden="true" />
+            <span data-testid="preview-part">{partName}</span>
+          </b>
+          <span data-testid="preview-meta">{detail.join(', ')}</span>
+        </span>
         {photo.unsure && <span className="chip">Not sure about this one</span>}
       </div>
     </div>
