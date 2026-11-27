@@ -14,6 +14,8 @@ export interface SaveRequest {
   parts: Part[]
   mode: SaveMode
   overwrite: boolean
+  /** Keep this job in sync: photos added to the folder later are placed and the numbered copies updated */
+  keepInSync?: boolean
 }
 
 export type SaveResponse = { written: number; outDir: string } | { exists: true } | { blocked: 'limit' | 'perPartLocked' }
@@ -39,6 +41,11 @@ export interface Api {
   showFolder(path: string): Promise<void>
   lightroomStatus(): Promise<{ supported: boolean; installed: boolean }>
   addToLightroom(): Promise<{ ok: true } | { ok: false; message: string }>
+  syncJob(dir: string): Promise<{ added: number; removed: number; blocked?: 'limit' | 'perPartLocked' }>
+  syncedJobs(): Promise<{ dir: string; name: string; photos: number; savedAt: number }[]>
+  stopSyncing(dir: string): Promise<void>
+  /** A synced job was updated in the background */
+  onJobSynced(cb: (e: { dir: string; name: string; added: number; removed: number; blocked?: 'limit' | 'perPartLocked' }) => void): () => void
   getWatchFolder(): Promise<string | null>
   chooseWatchFolder(): Promise<string | null>
   clearWatchFolder(): Promise<void>
@@ -56,12 +63,13 @@ export const INVOKE_METHODS = [
   'chooseFolder', 'sort', 'applyClockFix', 'recordCorrection', 'save', 'getParts', 'setParts',
   'getEvents', 'setEvent', 'getShortcuts', 'setShortcuts', 'licence', 'activate', 'deactivate', 'buy', 'showFolder',
   'lightroomStatus', 'addToLightroom', 'takeLaunchFolder',
+  'syncJob', 'syncedJobs', 'stopSyncing',
   'getWatchFolder', 'chooseWatchFolder', 'clearWatchFolder', 'appLocation', 'darktableSupported', 'addToDarktable'
 ] as const
 
 export type InvokeMethod = (typeof INVOKE_METHODS)[number]
 
-export const EVENTS = { progress: 'progress', modelDownload: 'model-download', openFolder: 'open-folder' } as const
+export const EVENTS = { progress: 'progress', modelDownload: 'model-download', openFolder: 'open-folder', jobSynced: 'job-synced' } as const
 
 export const THUMB_SMALL = 320
 export const THUMB_LARGE = 1600

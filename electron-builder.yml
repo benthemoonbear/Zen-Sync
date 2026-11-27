@@ -12,6 +12,8 @@ files:
 extraResources:
   - from: integrations/darktable/zen_sync.lua
     to: darktable/zen_sync.lua
+  - from: build/icon.png
+    to: tray-icon.png
 asarUnpack:
   - node_modules/sharp/**
   - node_modules/@img/**

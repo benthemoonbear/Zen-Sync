@@ -14,6 +14,7 @@ export function SaveDialog({ onClose }: { onClose: () => void }) {
   const [licensed, setLicensed] = useState(false)
   const [mode, setMode] = useState<SaveMode>('single')
   const [view, setView] = useState<View>({ kind: 'choose' })
+  const [keepInSync, setKeepInSync] = useState(true)
 
   useEffect(() => {
     void window.api.licence().then((l) => setLicensed(l.licensed))
@@ -28,7 +29,7 @@ export function SaveDialog({ onClose }: { onClose: () => void }) {
     if (!licensed && photos.length > FREE_PHOTO_LIMIT) return setView({ kind: 'unlock', reason: 'Free version saves up to 250 photos' })
     setView({ kind: 'saving' })
     try {
-      const r = await window.api.save({ dir: dir!, photos, parts, mode, overwrite })
+      const r = await window.api.save({ dir: dir!, photos, parts, mode, overwrite, keepInSync })
       if ('exists' in r) setView({ kind: 'exists' })
       else if ('blocked' in r) setView({ kind: 'unlock', reason: r.blocked === 'limit' ? 'Free version saves up to 250 photos' : 'Folder per part is part of the full version' })
       else setView({ kind: 'done', written: r.written, outDir: r.outDir })
@@ -66,6 +67,13 @@ export function SaveDialog({ onClose }: { onClose: () => void }) {
                   Folder per part<div className="sub">Folders and sub-folders for each part, numbering runs on</div>
                 </span>
                 {!licensed && <span className="lock">Full version, £14.99</span>}
+              </label>
+              <label className="sync-toggle">
+                <input type="checkbox" checked={keepInSync} onChange={(e) => setKeepInSync(e.target.checked)} />
+                <span>
+                  Keep in sync
+                  <span className="sub">Photos added to this folder later are put in order and the numbered copies updated, even with the window closed.</span>
+                </span>
               </label>
               {!licensed && photos.length > FREE_PHOTO_LIMIT && <p className="hint">The free version saves up to 250 photos. This wedding has {photos.length}.</p>}
               <div className="actions">

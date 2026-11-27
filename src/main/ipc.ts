@@ -9,6 +9,8 @@ import { MODEL } from './core/embed'
 import { applyClockFix, runSort, type SortSession } from './core/pipeline'
 import { OUTPUT_FOLDER, planOutput, writeCopies } from './core/save'
 import { createStore } from './core/store'
+import { scanFolder } from './core/scan'
+import { applyOffsets, placeNewPhotos, type Job } from './core/sync'
 import type { Part, SortResult } from './core/types'
 import { EVENTS, type SaveRequest, type SaveResponse } from '../shared/api'
 
@@ -37,9 +39,63 @@ export interface HandlerDeps {
   appLocation?: string
   /** darktable integration: installs Zen Sync as an export destination (absent where darktable isn't set up) */
   darktable?: { install(): Promise<void> }
+  /** Called when the list of synced jobs changes, so the app can watch their folders */
+  jobsChanged?(dirs: string[]): void
 }
 
+export type SyncOutcome = { added: number; removed: number; blocked?: 'limit' | 'perPartLocked' }
+
 export function createHandlers(deps: HandlerDeps) {
+  const jobsStore = createStore<Record<string, Job>>(join(deps.userData, 'synced-jobs.json'), {})
+  const queues = new Map<string, Promise<unknown>>()
+  /** One sync or save at a time per job folder. */
+  function serial<T>(dir: string, fn: () => Promise<T>): Promise<T> {
+    const next = (queues.get(dir) ?? Promise.resolve()).then(fn, fn)
+    queues.set(dir, next.catch(() => {}))
+    return next
+  }
+  const jobsChanged = () => deps.jobsChanged?.(Object.keys(jobsStore.get()))
+
+  /** Adds photos that appeared in a synced job's folder (and drops deleted ones), then rewrites the numbered copies. */
+  async function syncJob(dirIn: string): Promise<SyncOutcome> {
+    const dir = resolve(dirIn)
+    return serial(dir, async () => {
+      const job = jobsStore.get()[dir]
+      if (!job) return { added: 0, removed: 0 }
+      const { photos: onDisk } = await scanFolder(dir)
+      const disk = new Set(onDisk.map((p) => p.path))
+      const known = new Set(job.photos.map((p) => p.path))
+      const fresh = onDisk.filter((p) => !known.has(p.path)).map((p) => p.path)
+      const kept = job.photos.filter((p) => disk.has(p.path))
+      const removed = job.photos.length - kept.length
+      if (!fresh.length && !removed) return { added: 0, removed: 0 }
+      let photos = kept
+      if (fresh.length) {
+        const s = await runSort(dir, {
+          embedder: await getEmbedder(),
+          parts: partsForSort(job.parts),
+          corrections: correctionsStore.get(),
+          only: fresh
+        })
+        // The day's part order as arranged in this job, then any parts not yet used.
+        const order = [...new Set([...kept.map((p) => p.partId), ...job.parts.map((p) => p.id)])]
+        photos = placeNewPhotos(kept, applyOffsets(s.result.photos, job.offsets), order)
+      }
+      const licensed = isLicensed(licenceStore.get())
+      const check = canSave(photos.length, job.mode, licensed)
+      const name = dir.split(/[\\/]/).pop()
+      if (!check.ok) {
+        deps.emit(EVENTS.jobSynced, { dir, name, added: 0, removed: 0, blocked: check.reason })
+        return { added: 0, removed: 0, blocked: check.reason }
+      }
+      await writeCopies(dir, planOutput(photos, job.parts, job.mode), { overwrite: true, mode: job.mode, licensed })
+      jobsStore.set({ ...jobsStore.get(), [dir]: { ...job, photos, savedAt: Date.now() } })
+      const outcome = { added: photos.length - kept.length, removed }
+      deps.emit(EVENTS.jobSynced, { dir, name, ...outcome })
+      return outcome
+    })
+  }
+
   const watchStore = createStore<string | null>(join(deps.userData, 'watch-folder.json'), null)
   const shortcutsStore = createStore<Record<string, string>>(join(deps.userData, 'shortcuts.json'), {})
   const eventStore = createStore<string>(join(deps.userData, 'event.json'), DEFAULT_EVENT)
@@ -110,12 +166,20 @@ export function createHandlers(deps: HandlerDeps) {
       const licensed = isLicensed(licenceStore.get())
       const check = canSave(req.photos.length, req.mode, licensed)
       if (!check.ok) return { blocked: check.reason }
-      const r = await writeCopies(req.dir, planOutput(req.photos, req.parts, req.mode), {
-        overwrite: req.overwrite,
-        mode: req.mode,
-        licensed
-      })
-      return 'exists' in r ? r : { written: r.written, outDir: join(req.dir, OUTPUT_FOLDER) }
+      const dir = resolve(req.dir)
+      const r = await serial(dir, () =>
+        writeCopies(req.dir, planOutput(req.photos, req.parts, req.mode), { overwrite: req.overwrite, mode: req.mode, licensed })
+      )
+      if ('exists' in r) return r
+      const jobs = { ...jobsStore.get() }
+      const offsets = session && resolve(session.dir) === dir ? Object.fromEntries(session.offsets) : jobsStore.get()[dir]?.offsets
+      if (req.keepInSync) jobs[dir] = { dir, mode: req.mode, parts: req.parts, photos: req.photos, savedAt: Date.now(), offsets }
+      else delete jobs[dir]
+      jobsStore.set(jobs)
+      jobsChanged()
+      // Catch anything that arrived while the job was being reviewed.
+      if (req.keepInSync) void syncJob(dir).catch((e) => console.error('Sync failed:', e))
+      return { written: r.written, outDir: join(req.dir, OUTPUT_FOLDER) }
     },
 
     async getParts(): Promise<Part[]> {
@@ -144,6 +208,21 @@ export function createHandlers(deps: HandlerDeps) {
       } catch (e) {
         return { ok: false, message: `Couldn't add Zen Sync to Lightroom (${(e as Error).message}).` }
       }
+    },
+
+    syncJob,
+
+    async syncedJobs(): Promise<{ dir: string; name: string; photos: number; savedAt: number }[]> {
+      return Object.values(jobsStore.get())
+        .map((j) => ({ dir: j.dir, name: j.dir.split(/[\\/]/).pop() ?? j.dir, photos: j.photos.length, savedAt: j.savedAt }))
+        .sort((a, b) => b.savedAt - a.savedAt)
+    },
+
+    async stopSyncing(dir: string): Promise<void> {
+      const jobs = { ...jobsStore.get() }
+      delete jobs[resolve(dir)]
+      jobsStore.set(jobs)
+      jobsChanged()
     },
 
     async getWatchFolder(): Promise<string | null> {

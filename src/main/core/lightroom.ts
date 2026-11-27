@@ -113,11 +113,11 @@ export function isWatchedPhoto(root: string, path: string): boolean {
  * Watches a folder (and its sub-folders) for exported JPEGs from any editor and reports their paths.
  * Pair it with createExportCollector to wait for each export to finish. Returns a function that stops watching.
  */
-export function watchFolder(root: string, onPhotos: (paths: string[]) => void): () => void {
+export function watchFolder(root: string, onPhotos: (paths: string[]) => void, opts: { includeRemoved?: boolean } = {}): () => void {
   const watcher = watch(root, { recursive: true }, (_event, name) => {
     if (!name) return
     const path = join(root, name.toString())
-    if (isWatchedPhoto(root, path) && existsSync(path)) onPhotos([path])
+    if (isWatchedPhoto(root, path) && (opts.includeRemoved || existsSync(path))) onPhotos([path])
   })
   watcher.on('error', () => {})
   return () => watcher.close()

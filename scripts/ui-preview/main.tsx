@@ -35,6 +35,16 @@ let currentEvent = 'wedding'
   addToLightroom: async () => ({ ok: true }),
   takeLaunchFolder: async () => null,
   getWatchFolder: async () => null,
+  syncJob: async () => ({ added: 0, removed: 0 }),
+  syncedJobs: async () => [
+    { dir: '/w/Robyn & Gabriel', name: 'Robyn & Gabriel', photos: 412, savedAt: Date.now() - 3600_000 },
+    { dir: '/w/Smith wedding', name: 'Smith wedding', photos: 538, savedAt: Date.now() - 86400_000 * 2 }
+  ],
+  stopSyncing: async () => {},
+  onJobSynced: (cb: (e: unknown) => void) => {
+    if (location.search.includes('toast')) setTimeout(() => cb({ dir: '/w/Robyn & Gabriel', name: 'Robyn & Gabriel', added: 3, removed: 0 }), 1500)
+    return () => {}
+  },
   chooseWatchFolder: async () => 'D:\\Exports\\Weddings',
   clearWatchFolder: async () => {},
   appLocation: async () => 'C:\\Users\\Ben\\AppData\\Local\\Programs\\Zen Sync\\Zen Sync.exe',

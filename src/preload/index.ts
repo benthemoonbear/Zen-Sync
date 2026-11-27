@@ -13,6 +13,7 @@ function listen<T>(channel: string, cb: (v: T) => void): () => void {
 api.onProgress = (cb: Parameters<Api['onProgress']>[0]) => listen(EVENTS.progress, cb)
 api.onModelDownload = (cb: Parameters<Api['onModelDownload']>[0]) => listen(EVENTS.modelDownload, cb)
 api.onOpenFolder = (cb: Parameters<Api['onOpenFolder']>[0]) => listen(EVENTS.openFolder, cb)
+api.onJobSynced = (cb: Parameters<Api['onJobSynced']>[0]) => listen(EVENTS.jobSynced, cb)
 api.pathForFile = (file: File) => webUtils.getPathForFile(file)
 
 contextBridge.exposeInMainWorld('api', api as unknown as Api)

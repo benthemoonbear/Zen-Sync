@@ -42,6 +42,52 @@ describe('ipc handlers', () => {
     expect(await h.save({ dir, photos: r.photos, parts: r.parts, mode: 'single', overwrite: false })).toEqual({ written: 3, outDir: join(dir, 'numbered') })
   })
 
+  test('keeping a job in sync: late photos are added and the numbered copies renumbered', async () => {
+    const { h, dir, events } = await setup(3)
+    const r = await h.sort(dir)
+    await h.save({ dir, photos: r.photos, parts: r.parts, mode: 'single', overwrite: false, keepInSync: true })
+    expect((await h.syncedJobs()).map((j) => j.dir)).toEqual([dir])
+    expect(await h.syncJob(dir)).toEqual({ added: 0, removed: 0 })
+    await writeJpeg(dir, 'IMG0004.jpg')
+    await writeJpeg(dir, 'IMG0005.jpg')
+    expect(await h.syncJob(dir)).toEqual({ added: 2, removed: 0 })
+    const { readdir } = await import('node:fs/promises')
+    expect((await readdir(join(dir, 'numbered'))).sort()).toEqual(['1.jpg', '2.jpg', '3.jpg', '4.jpg', '5.jpg'])
+    expect(events.some(([c, p]) => c === 'job-synced' && (p as { added: number }).added === 2)).toBe(true)
+    expect((await h.syncedJobs())[0].photos).toBe(5)
+  })
+
+  test('a photo deleted from a synced job is removed from the numbered copies too', async () => {
+    const { h, dir } = await setup(3)
+    const r = await h.sort(dir)
+    await h.save({ dir, photos: r.photos, parts: r.parts, mode: 'single', overwrite: false, keepInSync: true })
+    await h.syncJob(dir) // let the catch-up sync after saving finish
+    const { rm, readdir } = await import('node:fs/promises')
+    await rm(join(dir, 'IMG0002.jpg'))
+    expect(await h.syncJob(dir)).toEqual({ added: 0, removed: 1 })
+    expect((await readdir(join(dir, 'numbered'))).sort()).toEqual(['1.jpg', '2.jpg'])
+  })
+
+  test('a save without keeping in sync is not synced, and a job can stop syncing', async () => {
+    const { h, dir } = await setup(2)
+    const r = await h.sort(dir)
+    await h.save({ dir, photos: r.photos, parts: r.parts, mode: 'single', overwrite: false })
+    expect(await h.syncedJobs()).toEqual([])
+    await h.save({ dir, photos: r.photos, parts: r.parts, mode: 'single', overwrite: true, keepInSync: true })
+    await h.stopSyncing(dir)
+    expect(await h.syncedJobs()).toEqual([])
+    expect(await h.syncJob(dir)).toEqual({ added: 0, removed: 0 })
+  })
+
+  test('the free limit still applies to late photos', async () => {
+    const { h, dir, events } = await setup(250)
+    const r = await h.sort(dir)
+    await h.save({ dir, photos: r.photos, parts: r.parts, mode: 'single', overwrite: false, keepInSync: true })
+    await writeJpeg(dir, 'IMG9999.jpg')
+    expect(await h.syncJob(dir)).toEqual({ added: 0, removed: 0, blocked: 'limit' })
+    expect(events.some(([c, p]) => c === 'job-synced' && (p as { blocked?: string }).blocked === 'limit')).toBe(true)
+  }, 60_000)
+
   test('save refuses photos that were not in the last sort', async () => {
     const { h, dir } = await setup(2)
     const r = await h.sort(dir)

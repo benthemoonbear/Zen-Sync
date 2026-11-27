@@ -123,6 +123,22 @@ describe('watching a folder for new exports', () => {
   })
 })
 
+describe('watching a synced job', () => {
+  test('deleting a photo is noticed when asked to include removals', async () => {
+    const { watchFolder } = await import('../../src/main/core/lightroom')
+    const { rm } = await import('node:fs/promises')
+    const root = await tempDir('job')
+    await writeFile(join(root, 'a.jpg'), 'x')
+    const got: string[] = []
+    const stop = watchFolder(root, (p) => got.push(...p), { includeRemoved: true })
+    await new Promise((r) => setTimeout(r, 100))
+    await rm(join(root, 'a.jpg'))
+    await new Promise((r) => setTimeout(r, 400))
+    stop()
+    expect(got).toContain(join(root, 'a.jpg'))
+  })
+})
+
 describe('darktable', () => {
   test('installs the Zen Sync export script, pointing at this copy of Zen Sync, and loads it once', async () => {
     const { installDarktable } = await import('../../src/main/core/lightroom')

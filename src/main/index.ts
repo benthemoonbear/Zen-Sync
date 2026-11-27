@@ -1,8 +1,8 @@
-import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, net, Notification, protocol, shell, Tray } from 'electron'
 import { existsSync } from 'node:fs'
 import { readFile, rm, symlink } from 'node:fs/promises'
 import { homedir, hostname } from 'node:os'
-import { join, resolve } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createSiglipEmbedder } from './core/embed'
 import { createHandlers, type Handlers } from './ipc'
@@ -19,6 +19,12 @@ protocol.registerSchemesAsPrivileged([
 ])
 
 let win: BrowserWindow | null = null
+let tray: Tray | null = null
+let quitting = false
+let handlersRef: Handlers | null = null
+/** Folders of saved jobs kept in sync (late photos are added in the background) */
+let syncedDirs: string[] = []
+const inSyncedJob = (path: string) => syncedDirs.find((d) => path === d || path.startsWith(d + sep)) ?? null
 
 // One Zen Sync at a time: Lightroom launches the app once per batch of exported photos,
 // so later launches hand their photos to the window that's already open.
@@ -32,6 +38,12 @@ const exportCollector = createExportCollector({
   settleMs: 1500,
   newestChangeMs: newestJpegChange,
   onReady: (dir, photos) => {
+    // An export into a job that's already kept in sync (e.g. late edits re-exported) updates that job.
+    const job = inSyncedJob(dir)
+    if (job && handlersRef) {
+      void handlersRef.syncJob(job).catch((e) => console.error('Sync failed:', e))
+      return
+    }
     if (win && rendererListening) {
       win.webContents.send(EVENTS.openFolder, { dir, photos })
       if (win.isMinimized()) win.restore()
@@ -46,7 +58,8 @@ const receive = (argv: string[]) => {
 receive(process.argv)
 app.on('second-instance', (_e, argv) => {
   receive(argv)
-  if (win) {
+  if (win && !pathsFromArgv(argv).length) {
+    win.show()
     if (win.isMinimized()) win.restore()
     win.focus()
   }
@@ -86,9 +99,91 @@ function startWatching(dir: string | null) {
   stopWatching = null
   if (!dir || !existsSync(dir)) return
   try {
-    stopWatching = watchFolder(dir, (paths) => exportCollector.add(paths, []))
+    // Photos landing in a synced job inside the watched folder are that job's business, not a new export.
+    stopWatching = watchFolder(dir, (paths) => {
+      const fresh = paths.filter((p) => !inSyncedJob(p))
+      if (fresh.length) exportCollector.add(fresh, [])
+    })
   } catch (e) {
     console.error('Could not watch folder:', e)
+  }
+}
+
+/** Watches each synced job's folder; once new photos have finished arriving, the job is synced. */
+const jobWatchers = new Map<string, { stop: () => void; add: (paths: string[]) => void }>()
+function watchJobs(dirs: string[]) {
+  syncedDirs = dirs.map((d) => resolve(d))
+  for (const [dir, w] of jobWatchers) {
+    if (!syncedDirs.includes(dir)) {
+      w.stop()
+      jobWatchers.delete(dir)
+    }
+  }
+  for (const dir of syncedDirs) {
+    if (jobWatchers.has(dir) || !existsSync(dir)) continue
+    const collector = createExportCollector({
+      quietMs: 3000,
+      settleMs: 2000,
+      newestChangeMs: newestJpegChange,
+      onReady: () => void handlersRef?.syncJob(dir).catch((e) => console.error('Sync failed:', e))
+    })
+    try {
+      // Deletions matter too, so any change to a JPEG (not just new ones) triggers a check.
+      const stop = watchFolder(dir, (paths) => collector.add(paths, []), { includeRemoved: true })
+      jobWatchers.set(dir, { stop, add: collector.add })
+    } catch (e) {
+      console.error('Could not watch job folder:', e)
+    }
+  }
+  updateTray()
+}
+
+/** Tells the person (system notification) when a job was updated in the background. */
+function notifySynced(e: { name: string; added: number; removed: number; blocked?: string }) {
+  if (!Notification.isSupported()) return
+  const plural = (n: number) => (n === 1 ? 'photo' : 'photos')
+  const body = e.blocked
+    ? `New photos arrived in “${e.name}”, but the free version saves up to 250. Unlock Zen Sync to keep it in sync.`
+    : [e.added && `${e.added} new ${plural(e.added)} added`, e.removed && `${e.removed} ${plural(e.removed)} removed`].filter(Boolean).join(', ') +
+      ` in “${e.name}”. The numbered copies are up to date.`
+  new Notification({ title: 'Zen Sync', body, silent: true }).show()
+}
+
+function trayIcon() {
+  const file = app.isPackaged ? join(process.resourcesPath, 'tray-icon.png') : join(app.getAppPath(), 'build', 'icon.png')
+  return nativeImage.createFromPath(file).resize({ width: 22, height: 22 })
+}
+
+/** The tray icon keeps Zen Sync running (and syncing) after the window is closed. */
+function updateTray() {
+  if (!app.isReady()) return
+  if (!tray) {
+    try {
+      tray = new Tray(trayIcon())
+    } catch (e) {
+      console.error('No tray available:', e)
+      return
+    }
+    tray.setToolTip('Zen Sync')
+    tray.on('click', () => showWindow())
+  }
+  const n = syncedDirs.length
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: 'Open Zen Sync', click: () => showWindow() },
+      { label: n ? `Keeping ${n} ${n === 1 ? 'job' : 'jobs'} in sync` : 'No jobs kept in sync', enabled: false },
+      { type: 'separator' },
+      { label: 'Quit Zen Sync', click: () => { quitting = true; app.quit() } }
+    ])
+  )
+}
+
+function showWindow() {
+  if (!win) createWindow()
+  else {
+    if (win.isMinimized()) win.restore()
+    win.show()
+    win.focus()
   }
 }
 
@@ -132,6 +227,18 @@ function createWindow(): void {
     }
   })
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  // Closing the window keeps Zen Sync in the tray so synced jobs stay up to date; Quit is in the tray menu.
+  let toldAboutTray = false
+  win.on('close', (e) => {
+    if (quitting || !tray) return
+    e.preventDefault()
+    win?.hide()
+    if (!toldAboutTray && Notification.isSupported()) {
+      toldAboutTray = true
+      new Notification({ title: 'Zen Sync is still running', body: 'It keeps your synced jobs up to date from the tray. Quit from the tray icon.', silent: true }).show()
+    }
+  })
+  win.on('closed', () => (win = null))
   if (process.env.ELECTRON_RENDERER_URL) win.loadURL(process.env.ELECTRON_RENDERER_URL)
   else win.loadFile(join(__dirname, '../renderer/index.html'))
 }
@@ -209,7 +316,11 @@ app.whenReady().then(() => {
     serverUrl: String(import.meta.env.MAIN_VITE_LICENCE_SERVER_URL || PAYMENTS.licenceServerUrl),
     checkoutUrl: String(import.meta.env.MAIN_VITE_CHECKOUT_URL || PAYMENTS.checkoutUrl),
     openCheckout,
-    emit: (channel, payload) => win?.webContents.send(channel, payload),
+    emit: (channel, payload) => {
+      if (channel === EVENTS.jobSynced) notifySynced(payload as { name: string; added: number; removed: number; blocked?: string })
+      win?.webContents.send(channel, payload)
+    },
+    jobsChanged: watchJobs,
     lightroom: lightroomDeps(),
     darktable: darktableDeps(),
     appLocation: appLocation(),
@@ -222,8 +333,19 @@ app.whenReady().then(() => {
     }
   })
   register(handlers)
+  handlersRef = handlers
   void handlers.getWatchFolder().then(startWatching)
+  // Keep saved jobs in sync, catching up on anything added while Zen Sync was closed.
+  void handlers.syncedJobs().then(async (jobs) => {
+    watchJobs(jobs.map((j) => j.dir))
+    for (const j of jobs) await handlers.syncJob(j.dir).catch((e) => console.error('Sync failed:', e))
+  })
   createWindow()
+  updateTray()
 })
 
-app.on('window-all-closed', () => app.quit())
+app.on('before-quit', () => (quitting = true))
+
+app.on('window-all-closed', () => {
+  if (!tray) app.quit()
+})

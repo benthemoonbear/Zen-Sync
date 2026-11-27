@@ -64,6 +64,48 @@ describe('SaveDialog', () => {
     expect(req.photos.map((p: { name: string }) => p.name)).toEqual(appStore().getState().photos.map((p) => p.name))
     expect(req.dir).toBe('/w/bakewell wedding')
   })
+
+  test('jobs are kept in sync by default, and you can choose not to', async () => {
+    const { api } = await openSave({}, small())
+    const sync = screen.getByRole('checkbox', { name: /Keep in sync/ }) as HTMLInputElement
+    expect(sync.checked).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(api.save).toHaveBeenCalledWith(expect.objectContaining({ keepInSync: true })))
+    cleanup()
+    appStore().getState().reset()
+    const second = await openSave({}, small())
+    fireEvent.click(screen.getByRole('checkbox', { name: /Keep in sync/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(second.api.save).toHaveBeenCalledWith(expect.objectContaining({ keepInSync: false })))
+  })
+})
+
+describe('background sync', () => {
+  test('a toast says when a synced job was updated in the background', async () => {
+    const listeners: { jobSynced?: (e: { dir: string; name: string; added: number; removed: number }) => void } = {}
+    mockApi({ onJobSynced: (cb) => ((listeners.jobSynced = cb), () => {}) })
+    render(<App />)
+    await waitFor(() => expect(listeners.jobSynced).toBeTruthy())
+    act(() => listeners.jobSynced!({ dir: '/w/Smith wedding', name: 'Smith wedding', added: 3, removed: 0 }))
+    expect(await screen.findByText('3 new photos added to “Smith wedding”')).toBeTruthy()
+  })
+
+  test('Settings lists synced jobs and can stop syncing one', async () => {
+    const jobs = [{ dir: '/w/Smith wedding', name: 'Smith wedding', photos: 412, savedAt: Date.now() }]
+    const { api } = mockApi({
+      syncedJobs: vi.fn(async () => [...jobs]),
+      stopSyncing: vi.fn(async () => { jobs.length = 0 })
+    })
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Choose folder' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Settings' }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Synced jobs' }))
+    expect(await screen.findByText('Smith wedding')).toBeTruthy()
+    expect(screen.getByText(/412 photos/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Stop syncing Smith wedding' }))
+    await waitFor(() => expect(api.stopSyncing).toHaveBeenCalledWith('/w/Smith wedding'))
+    await waitFor(() => expect(screen.queryByText('Smith wedding')).toBeNull())
+  })
 })
 
 describe('UnlockDialog', () => {
